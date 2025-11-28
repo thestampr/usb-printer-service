@@ -35,6 +35,7 @@ printer --payload <JSON string|path> [options]
 | `--header-image` | Override header image path. Defaults to `config/settings.py` value. |
 | `--header-title` | Override title text printed above the receipt header. |
 | `--header-description` | Override smaller description line under the title. |
+| `--receipt-title` | Override receipt title text printed above the items list. |
 | `--footer-label` | Override footer text printed before cutting. |
 | `--footer-image` | Override footer image path. |
 | `--port` | Override printer queue in `PORT:NAME` form, e.g. `USB001:"XP-58 (copy 1)"`. |
