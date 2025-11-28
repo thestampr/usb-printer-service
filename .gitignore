@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+.eggs/
+.Python
+.build/
+.pytest_cache/
+.coverage*
+dist/
+build/
+
+# Virtual environments
+.env/
+.venv/
+venv/
+ENV/
+env/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local assets overrides
+assets/images/*.png
+!assets/images/README.md
