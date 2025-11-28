@@ -12,6 +12,7 @@ from printer.utils import (
     ALIGN_LEFT_TOKEN,
     ALIGN_RIGHT_TOKEN,
     SMALL_TEXT_TOKEN,
+    get_real_path
 )
 
 try:
@@ -41,7 +42,7 @@ class ReceiptPrinter:
         self.encoding = self.config.get("encoding", "utf-8")
         self.pixel_width = self.config.get("pixel_width", 384)
         self.font = LAYOUT.get("font_family", "Sarabun-SemiBold")
-        self.font_path = Path(LAYOUT.get("font_path", "assets/fonts/Sarabun/Sarabun-SemiBold.ttf"))
+        self.font_path = get_real_path(LAYOUT.get("font_path", "assets/fonts/Sarabun/Sarabun-SemiBold.ttf"))
         self.font_size = LAYOUT.get("font_size", 24)
         self.font_size_small = LAYOUT.get("font_size_small", max(12, self.font_size - 6))
         self.line_spacing = LAYOUT.get("line_spacing", 6)
@@ -172,7 +173,7 @@ class ReceiptPrinter:
     def print_image(self, path: str | Path) -> None:
         if not path:
             return
-        image_path = Path(path)
+        image_path = get_real_path(path)
         if not image_path.exists():
             LOGGER.warning("Header image %s not found; skipping", path)
             return

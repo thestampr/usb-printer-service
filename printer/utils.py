@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import textwrap
 from typing import Iterable, List
+from pathlib import Path
 
 from config.settings import LAYOUT, PRINTER
 
@@ -86,3 +87,8 @@ def format_total(value: float) -> str:
 
 def join_blocks(blocks: Iterable[str]) -> str:
     return "".join(blocks)
+
+def get_real_path(relative_path: str) -> Path:
+    """Get the absolute path to a resource, given its path relative to the project root."""
+    base_path = Path(__file__).parent.parent.resolve()
+    return (base_path / relative_path).resolve()
