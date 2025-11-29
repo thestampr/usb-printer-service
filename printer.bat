@@ -1,5 +1,4 @@
 @echo off
-setlocal
-cd /d "%~dp0"
-.venv\Scripts\activate && .venv\Scripts\python cli.py %* && .venv\Scripts\deactivate
-endlocal
+
+set scriptPath=%~dp0
+%scriptPath%\.venv\Scripts\activate && %scriptPath%\.venv\Scripts\python %scriptPath%\cli.py %* && %scriptPath%\.venv\Scripts\deactivate
