@@ -85,6 +85,16 @@ Quick example:
 printer --payload receipts/demo.json --port USB001:"XP-58 (copy 1)"
 ```
 
+## Opening the Cash Drawer
+
+Send a `POST` request to `/open-drawer` to trigger the cash drawer kick.
+
+or use the CLI:
+
+```cmd
+open-drawer
+```
+
 ## Configuration
 
 Edit `config/settings.py` to adjust:

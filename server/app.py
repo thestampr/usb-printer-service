@@ -11,6 +11,10 @@ from printer.template import build_receipt_text, validate_payload
 printer_bp = Blueprint("printer", __name__)
 
 
+@printer_bp.route("/health", methods=["GET"])
+def health_check():
+    return jsonify({"status": "ok"}), 200
+
 @printer_bp.route("/print", methods=["POST"])
 def print_receipt():
     try:
@@ -43,6 +47,17 @@ def print_receipt():
         printer.disconnect()
 
     return jsonify({"status": "printed", "total": validated["total"]}), 200
+
+@printer_bp.route("/open-drawer", methods=["POST"])
+def open_drawer():
+    try:
+        printer = ReceiptPrinter(PRINTER)
+        printer.kick_drawer()
+    except RuntimeError as exc:
+        return jsonify({"error": str(exc)}), 500
+    finally:
+        printer.disconnect()
+    return jsonify({"status": "drawer opened"}), 200
 
 
 def create_app() -> Flask:
