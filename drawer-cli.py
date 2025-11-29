@@ -39,7 +39,15 @@ def main() -> int:
         return 2
     
     printer = ReceiptPrinter(printer_config)
-    printer.kick_drawer()
+    try:
+        printer.kick_drawer()
+    except ValueError as exc:
+        print(f"[ERROR] {exc}", file=sys.stderr)
+        return 1
+    finally:
+        printer.disconnect()
+    print("[OK] Cash drawer opened successfully")
+    return 0
 
 
 if __name__ == "__main__":

@@ -226,6 +226,8 @@ class ReceiptPrinter:
                 device.text("\x1b\x70\x00\x19\xfa")
             elif pin == 5:
                 device.text("\x1b\x70\x01\x19\xfa")
+            else:
+                raise ValueError("Invalid pin for cash drawer kick; must be 2 or 5")
 
     def feed(self, lines: int = 1) -> None:
         """Advance paper by the requested number of lines."""
