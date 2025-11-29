@@ -211,6 +211,22 @@ class ReceiptPrinter:
             LOGGER.debug("Printer does not support cut operation; sending form feed")
             device.control("LF")
 
+    def kick_drawer(self, pin: int = 2) -> None:
+        """Kick the cash drawer."""
+        device = self.connect()
+        try:
+            device.cashdraw(pin)
+        except AttributeError:
+            # Fallback if cashdraw method is missing or using a driver that doesn't support it
+            # Standard ESC/POS kick drawer command: ESC p m t1 t2
+            # m=0 (pin 2), m=1 (pin 5)
+            # t1=25, t2=250 (pulse duration)
+            LOGGER.debug("Using raw ESC/POS command for drawer kick")
+            if pin == 2:
+                device.text("\x1b\x70\x00\x19\xfa")
+            elif pin == 5:
+                device.text("\x1b\x70\x01\x19\xfa")
+
     def feed(self, lines: int = 1) -> None:
         """Advance paper by the requested number of lines."""
         if lines <= 0:

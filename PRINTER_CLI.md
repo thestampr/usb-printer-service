@@ -1,6 +1,6 @@
-# USB Receipt Printer CLI
+# USB Receipt Printer CLI & Cash Drawer
 
-Command-line tool for printing Sarabun-based fuel receipts directly to ESC/POS USB printers (XP-58 / XP-58IIH).
+Command-line tools for printing Sarabun-based fuel receipts and opening the cash drawer via ESC/POS USB printers (XP-58 / XP-58IIH).
 
 ## 1. Installation
 
@@ -25,6 +25,8 @@ The helper batch file `printer.bat` lives in the project root. Add that folder t
 
 ## 3. CLI Syntax
 
+### Print Receipt
+
 ```
 printer --payload <JSON string|path> [options]
 ```
@@ -40,6 +42,18 @@ printer --payload <JSON string|path> [options]
 | `--footer-image` | Override footer image path. |
 | `--port` | Override printer queue in `PORT:NAME` form, e.g. `USB001:"XP-58 (copy 1)"`. |
 
+### Open Cash Drawer
+
+```
+open-drawer [--port PORT:NAME]
+```
+
+| Option | Description |
+| ------ | ----------- |
+| `--port` | Override printer queue in `PORT:NAME` form, e.g. `USB001:"XP-58 (copy 1)"`. |
+
+This command sends the ESC/POS "kick_drawer" signal to open the cash drawer attached to the printer.
+
 ## 4. Examples
 
 ### Basic print (payload file)
@@ -47,9 +61,20 @@ printer --payload <JSON string|path> [options]
 printer --payload receipts/demo.json
 ```
 
+### Open cash drawer
+```cmd
+open-drawer
+```
+
+### Open cash drawer with specific USB port
+```cmd
+open-drawer --port USB001:"XP-58"
+```
+
 ### Using batch helper (after PATH setup)
 ```cmd
 printer --payload receipts/demo.json
+open-drawer
 ```
 
 ### Custom header/footer text in Thai
@@ -106,7 +131,7 @@ Field notes:
 
 ## 5. Printer Feedback
 
-- On success the CLI prints `[OK] Receipt printed successfully`.
-- If validation fails or the printer cannot be reached, it prints `[ERROR] ...` to stderr and returns a non-zero exit code so scripts can detect failures.
+- **Receipt Print:** On success, prints `[OK] Receipt printed successfully`. On error, prints `[ERROR] ...` to stderr and returns non-zero exit code.
+- **Open Drawer:** On success, the drawer opens and the command exits with code 0. On error, prints `[ERROR] ...` to stderr and returns non-zero exit code.
 
-That's it! Use the CLI whenever you need an immediate printout directly from your terminal.
+That's it! Use the CLI tools whenever you need an immediate printout or to open the cash drawer directly from your terminal.
