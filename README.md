@@ -64,7 +64,12 @@ Send a JSON payload to `POST http://localhost:5000/print` matching the structure
   "total": 382.5,
   "transection": "TX-2025-11-001",
   "promotion": "PT Max Card",
-  "points": 30
+  "points": 30,
+  "extras": {
+    "Recieved": "500.00",
+    "Change": "127.50",
+    "Discount": "-10.00"
+  }
 }
 ```
 
@@ -76,6 +81,7 @@ Send a JSON payload to `POST http://localhost:5000/print` matching the structure
 - `transection` *(optional string)* – external transaction / bill reference printed under the header.
 - `promotion` *(optional string)* – text printed beneath the totals block.
 - `points` *(optional integer)* – loyalty points earned.
+- `extras` *(optional object)* – arbitrary key/value pairs (e.g., pump, cashier, terminal) printed after the totals block.
 
 ## Using the CLI
 

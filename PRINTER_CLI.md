@@ -95,7 +95,7 @@ printer --payload receipts/demo.json ^
 
 ### Inline JSON payload
 ```cmd
-printer --payload "{\"customer\":{\"name\":\"PTT\"},\"items\":[{\"name\":\"Gasohol 95\",\"amount\":38.25,\"quantity\":10}] }"
+printer --payload "{\"customer\":{\"name\":\"PTT\"},\"items\":[{\"name\":\"Gasohol 95\",\"amount\":38.25,\"quantity\":10}],\"extras\":{\"Recieved\":\"500.00\",\"Change\":\"127.50\",\"Discount\":\"-10.00\"}}" 
 ```
 
 ### Payload structure
@@ -116,7 +116,12 @@ printer --payload "{\"customer\":{\"name\":\"PTT\"},\"items\":[{\"name\":\"Gasoh
     "total": 382.5,
     "transection": "TX-2025-11-001",
     "promotion": "PT Max Card",
-    "points": 30
+    "points": 30,
+    "extras": {
+        "Recieved": "500.00",
+        "Change": "127.50",
+        "Discount": "-10.00"
+    }
 }
 ```
 
@@ -128,6 +133,7 @@ Field notes:
 - `transection` *(optional string)* – external transaction/bill reference printed beneath the header.
 - `promotion` *(optional string)* – label that prints under the totals block.
 - `points` *(optional integer)* – loyalty points earned for the transaction.
+- `extras` *(optional object)* – arbitrary key/value pairs (e.g., pump, cashier, kiosk) printed after totals.
 
 ## 5. Printer Feedback
 

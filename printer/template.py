@@ -53,6 +53,19 @@ def validate_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     if data.get("transection") is not None:
         data["transection"] = str(data["transection"])
 
+    extras = data.get("extras")
+    if extras is None:
+        data["extras"] = {}
+    else:
+        if not isinstance(extras, dict):
+            raise ValueError("Field 'extras' must be an object")
+        sanitized_extras: Dict[str, str] = {}
+        for key, value in extras.items():
+            sanitized_key = str(key)
+            sanitized_value = "" if value is None else str(value)
+            sanitized_extras[sanitized_key] = sanitized_value
+        data["extras"] = sanitized_extras
+
     return data
 
 
@@ -99,6 +112,13 @@ def build_receipt_text(data: Dict[str, Any], layout_overrides: Dict[str, Any] | 
         blocks.append(utils.add_line(f"Promotion: {promotion}"))
     if points := data.get("points"):
         blocks.append(utils.add_line(f"Points Earned: {points}"))
+
+    extras = data.get("extras") or {}
+    if extras:
+        for key, value in extras.items():
+            entry = f"{key}: {value}".strip()
+            for wrapped in utils.wrap_text(entry):
+                blocks.append(utils.add_line(wrapped))
 
     if footer_label:
         blocks.append(utils.add_empty_line())
