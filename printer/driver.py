@@ -4,7 +4,7 @@ from __future__ import annotations
 import importlib
 import logging
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, TYPE_CHECKING
 
 from config.settings import LAYOUT, PRINTER
 from printer.utils import (
@@ -31,6 +31,9 @@ except ModuleNotFoundError:  # pragma: no cover - warn later during connect
     WIN32PRINT_AVAILABLE = False
 
 LOGGER = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    import PIL.Image
 
 
 class ReceiptPrinter:
@@ -251,7 +254,7 @@ class ReceiptPrinter:
                 LOGGER.debug("Failed to close printer device", exc_info=True)
         self.device = None
 
-    def _prepare_bitmap(self, image: "Image.Image"):
+    def _prepare_bitmap(self, image: "PIL.Image.Image"):
         if image.mode != "L":
             image = image.convert("L")
 
