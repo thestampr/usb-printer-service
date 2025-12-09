@@ -10,7 +10,7 @@ from printer.driver import ReceiptPrinter
 
 
 def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Cash drawer cli")
+    parser = argparse.ArgumentParser(prog="open-drawer", description="Cash drawer cli")
     parser.add_argument(
         "--port",
         help="Override printer queue as 'PORT:PRINTER_NAME' (e.g., USB001:XP-58)",

@@ -8,12 +8,13 @@ from copy import deepcopy
 from pathlib import Path
 
 from config import settings
+from config_ui import launch_config_ui
 from printer.driver import ReceiptPrinter
-from printer.template import build_receipt_text, validate_payload
+from printer.template import build_info_page, build_receipt_text, validate_payload
 
 
 def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="USB receipt printer CLI")
+    parser = argparse.ArgumentParser(prog="printer", description="USB receipt printer CLI")
     parser.add_argument("--header-image", dest="header_image", help="Optional header image path")
     parser.add_argument("--header-title", dest="header_title", help="Optional header title override")
     parser.add_argument(
@@ -26,12 +27,22 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--footer-image", dest="footer_image", help="Optional footer image path")
     parser.add_argument(
         "--payload",
-        required=True,
-        help="JSON payload string or path to JSON file matching the /print body",
+        required=False,
+        help="JSON payload string or path to a JSON file matching the /print body",
     )
     parser.add_argument(
         "--port",
         help="Override printer queue as 'PORT:PRINTER_NAME' (e.g., USB001:XP-58)",
+    )
+    parser.add_argument(
+        "--config",
+        action="store_true",
+        help="Open the configuration UI and exit",
+    )
+    parser.add_argument(
+        "--test",
+        action="store_true",
+        help="Print a test page that summarizes the current printer settings",
     )
     return parser.parse_args()
 
@@ -79,6 +90,35 @@ def build_layout(args: argparse.Namespace) -> dict:
 
 def main() -> int:
     args = parse_arguments()
+
+    if args.config:
+        launch_config_ui()
+        return 0
+
+    if args.test:
+        try:
+            printer_config = configure_printer(args.port)
+        except ValueError as exc:
+            print(f"[ERROR] {exc}", file=sys.stderr)
+            return 2
+
+        printer = ReceiptPrinter(printer_config)
+        try:
+            printer.print_text(build_info_page())
+            printer.feed(2)
+            printer.cut()
+        except RuntimeError as exc:
+            print(f"[ERROR] {exc}", file=sys.stderr)
+            return 1
+        finally:
+            printer.disconnect()
+
+        print("[OK] Test page printed successfully")
+        return 0
+
+    if not args.payload:
+        print("[ERROR] --payload is required unless --config or --test is used", file=sys.stderr)
+        return 2
 
     try:
         payload = load_payload(args.payload)

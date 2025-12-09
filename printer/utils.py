@@ -26,8 +26,27 @@ def wrap_text(text: str, width: int | None = None) -> List[str]:
     return textwrap.wrap(text, width=width) or [""]
 
 
-def add_line(text: str = "") -> str:
-    return f"{text}\n"
+def add_line(text: str = "", right_text: str | None = None, align: str | None = None) -> str:
+    left = text or ""
+    if right_text is not None:
+        right = right_text
+        width = _ensure_width(None)
+        spacing = width - len(left) - len(right)
+        spacing = max(1, spacing)
+        return f"{left}{' ' * spacing}{right}\n"
+
+    formatted = left
+    if align:
+        token_map = {
+            "left": ALIGN_LEFT_TOKEN,
+            "center": ALIGN_CENTER_TOKEN,
+            "right": ALIGN_RIGHT_TOKEN,
+        }
+        token = token_map.get(align.lower())
+        if token:
+            formatted = f"{token}{formatted}"
+
+    return f"{formatted}\n"
 
 
 def add_empty_line() -> str:

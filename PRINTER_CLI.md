@@ -33,14 +33,15 @@ printer --payload <JSON string|path> [options]
 
 | Option | Description |
 | ------ | ----------- |
-| `--payload` | **Required**. JSON string or path to a JSON file containing the receipt fields listed below. |
-| `--header-image` | Override header image path. Defaults to `config/settings.py` value. |
+| `--payload` | **Required unless `--config` is used**. JSON string or path to a JSON file containing the receipt fields listed below. |
+| `--header-image` | Override header image path. Defaults to `config/settings.json` value. |
 | `--header-title` | Override title text printed above the receipt header. |
 | `--header-description` | Override smaller description line under the title. |
 | `--receipt-title` | Override receipt title text printed above the items list. |
 | `--footer-label` | Override footer text printed before cutting. |
 | `--footer-image` | Override footer image path. |
 | `--port` | Override printer queue in `PORT:NAME` form, e.g. `USB001:"XP-58 (copy 1)"`. |
+| `--config` | Launch the Tkinter configuration UI and exit without printing. |
 
 ### Open Cash Drawer
 
@@ -59,6 +60,11 @@ This command sends the ESC/POS "kick_drawer" signal to open the cash drawer atta
 ### Basic print (payload file)
 ```cmd
 printer --payload receipts/demo.json
+```
+
+### Open the configuration UI
+```cmd
+printer --config
 ```
 
 ### Open cash drawer
@@ -139,5 +145,6 @@ Field notes:
 
 - **Receipt Print:** On success, prints `[OK] Receipt printed successfully`. On error, prints `[ERROR] ...` to stderr and returns non-zero exit code.
 - **Open Drawer:** On success, the drawer opens and the command exits with code 0. On error, prints `[ERROR] ...` to stderr and returns non-zero exit code.
+- **Config UI:** Exits with code 0 when the window closes (or non-zero if startup fails).
 
 That's it! Use the CLI tools whenever you need an immediate printout or to open the cash drawer directly from your terminal.

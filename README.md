@@ -16,6 +16,7 @@ Python-based receipt printing system for XP-58 / XP-58IIH ESC/POS printers with 
 ```
 config/
   settings.py
+  settings.json
 printer/
   driver.py
   utils.py
@@ -32,11 +33,12 @@ PRINTER_CLI.md
 
 1. Install Python 3.10+ on Windows.
 2. Clone this repository and open a terminal in the project root.
-3. Install dependencies:
-   ```cmd
-   pip install -r requirements.txt
+3. Run the helper script once:
+  ```cmd
+  setup.cmd
    ```
-4. Make sure the Sarabun font files under `assets/fonts/Sarabun/` exist; update `config/settings.py` if using a different path.
+   This installs `virtualenv`, creates `.venv`, installs `requirements.txt`, and appends the project's `bin` folder to your user `PATH`.
+4. Make sure the Sarabun font files under `assets/fonts/Sarabun/` exist; update `config/settings.json` (or the config UI) if using a different path.
 
 ## Running the Flask API
 
@@ -91,6 +93,12 @@ Quick example:
 printer --payload receipts/demo.json --port USB001:"XP-58 (copy 1)"
 ```
 
+Open the configuration UI instead of printing:
+
+```cmd
+printer --config
+```
+
 ## Opening the Cash Drawer
 
 Send a `POST` request to `/open-drawer` to trigger the cash drawer kick.
@@ -103,7 +111,7 @@ open-drawer
 
 ## Configuration
 
-Edit `config/settings.py` to adjust:
+All defaults live in `config/settings.json`. You can edit the JSON directly or launch the Tkinter UI (`printer --config` or `python config_ui.py`) for a minimal form-based editor.
 
 - Printer queue name/port
 - Header/footer text and images

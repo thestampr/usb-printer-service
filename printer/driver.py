@@ -69,7 +69,7 @@ class ReceiptPrinter:
             # Win32Raw talks directly to a Windows printer queue by name/port.
             self.device = escpos_printer.Win32Raw(usb_name, port=usb_port)
         except Exception as exc:  # pragma: no cover - hardware specific
-            LOGGER.exception("Unable to connect to printer %s (%s)", usb_name, usb_port)
+            LOGGER.error("Unable to connect to printer %s (%s): %s", usb_name, usb_port, exc)
             raise RuntimeError("Failed to connect to USB receipt printer") from exc
 
         return self.device
@@ -121,7 +121,7 @@ class ReceiptPrinter:
         try:
             device.image(image, impl="bitImageColumn")
         except Exception as exc:
-            LOGGER.exception("Failed to print rendered text image")
+            LOGGER.error("Failed to print rendered text image: %s", exc)
             raise RuntimeError("Failed to print text as image") from exc
 
     def _prepare_lines(self, text: str):
@@ -168,7 +168,7 @@ class ReceiptPrinter:
         try:
             font = ImageFont.truetype(str(self.font_path), size)
         except Exception as exc:
-            LOGGER.exception("Failed to load font %s at size %s", self.font_path, size)
+            LOGGER.error("Failed to load font %s at size %s: %s", self.font_path, size, exc)
             raise RuntimeError("Failed to load Sarabun font") from exc
         self._font_cache[size] = font
         return font
@@ -188,14 +188,14 @@ class ReceiptPrinter:
             try:
                 device.image(str(image_path))
             except Exception as exc:  # pragma: no cover - hardware specific
-                LOGGER.exception("Failed to print image %s", image_path)
+                LOGGER.error("Failed to print image %s: %s", image_path, exc)
                 raise RuntimeError("Failed to print header image") from exc
             return
 
         try:
             pil_image = Image.open(image_path)
         except Exception as exc:
-            LOGGER.exception("Failed to open image %s", image_path)
+            LOGGER.error("Failed to open image %s: %s", image_path, exc)
             raise RuntimeError("Failed to open image for printing") from exc
 
         processed = self._prepare_bitmap(pil_image)
@@ -203,7 +203,7 @@ class ReceiptPrinter:
         try:
             device.image(processed, impl="bitImageColumn")
         except Exception as exc:  # pragma: no cover - hardware specific
-            LOGGER.exception("Failed to print processed image %s", image_path)
+            LOGGER.error("Failed to print processed image %s: %s", image_path, exc)
             raise RuntimeError("Failed to print header image") from exc
 
     def cut(self) -> None:
@@ -240,7 +240,7 @@ class ReceiptPrinter:
         try:
             device.text("\n" * int(lines))
         except Exception as exc:  # pragma: no cover - hardware specific
-            LOGGER.exception("Failed to feed printer %s lines", lines)
+            LOGGER.error("Failed to feed printer %s lines: %s", lines, exc)
             raise RuntimeError("Failed to feed paper") from exc
 
     def disconnect(self) -> None:

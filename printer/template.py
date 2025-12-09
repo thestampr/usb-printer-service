@@ -4,7 +4,10 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any, Dict
 
-from config.settings import LAYOUT as DEFAULT_LAYOUT
+from config.settings import (
+    PRINTER as DEFAULT_PRINTER,
+    LAYOUT as DEFAULT_LAYOUT
+)
 from printer import utils
 
 
@@ -123,5 +126,17 @@ def build_receipt_text(data: Dict[str, Any], layout_overrides: Dict[str, Any] | 
     if footer_label:
         blocks.append(utils.add_empty_line())
         blocks.append(utils.add_line(utils.align_center(footer_label)))
+
+    return utils.join_blocks(blocks)
+
+def build_info_page() -> str:
+    """Build a simple printer settings info page."""
+    blocks = []
+    blocks.append(utils.add_line(utils.align_center("Test page")))
+    blocks.append(utils.add_empty_line())
+
+    printer_cfg = deepcopy(DEFAULT_PRINTER)
+    for key, value in printer_cfg.items():
+        blocks.append(utils.add_line(key, right_text=str(value)))
 
     return utils.join_blocks(blocks)
