@@ -34,3 +34,6 @@ Thumbs.db
 # Local assets overrides
 assets/images/*.png
 !assets/images/README.md
+
+# temp files
+temp.*
