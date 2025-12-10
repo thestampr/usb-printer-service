@@ -155,6 +155,7 @@ class ConfigUI:
         self._nav_buttons: Dict[str, tk.Button] = {}
         self._scroll_canvas: tk.Canvas | None = None
         self._scroll_inner: ttk.Frame | None = None
+        self._scrollbar: ttk.Scrollbar | None = None
         self._scroll_window: int | None = None
         self._section_title: ttk.Label | None = None
         self._init_variables()
@@ -173,6 +174,9 @@ class ConfigUI:
         if self._icon_image:
             self._root.iconphoto(True, self._icon_image)
         self._root.after(100, self._on_ready)
+        self._root.bind("<Configure>", self._handle_window_configure)
+        self._root.bind("<Map>", self._handle_window_state)
+        self._root.bind("<Unmap>", self._handle_window_state)
         
     def _on_ready(self) -> None:
         self._apply_titlebar_theme()
@@ -207,6 +211,37 @@ class ConfigUI:
     def _create_window_icon(self) -> tk.PhotoImage:
         icon = _get_icon("window_icon")
         return ImageTk.PhotoImage(icon)
+
+    def _handle_window_configure(self, event: tk.Event) -> None:
+        if event.widget is self._root:
+            self._schedule_scrollbar_update()
+
+    def _handle_window_state(self, _event: tk.Event) -> None:
+        self._schedule_scrollbar_update()
+
+    def _handle_scroll_inner_configure(self, _event: tk.Event) -> None:
+        if self._scroll_canvas:
+            self._scroll_canvas.configure(scrollregion=self._scroll_canvas.bbox("all"))
+        self._schedule_scrollbar_update()
+
+    def _handle_canvas_configure(self, _event: tk.Event) -> None:
+        if self._scroll_canvas and self._scroll_window is not None:
+            self._scroll_canvas.itemconfigure(self._scroll_window, width=self._scroll_canvas.winfo_width())
+        self._schedule_scrollbar_update()
+
+    def _schedule_scrollbar_update(self) -> None:
+        if self._root:
+            self._root.after_idle(self._update_scrollbar_visibility)
+        
+    def _update_scrollbar_visibility(self) -> None:
+        if not self._scroll_canvas or not self._scrollbar:
+            return
+        canvas_height = self._scroll_canvas.winfo_height()
+        content_height = self._scroll_canvas.bbox("all")[3] if self._scroll_canvas.bbox("all") else 0
+        if content_height <= canvas_height:
+            self._scrollbar.configure(style="Hidden.Scrollbar")
+        else:
+            self._scrollbar.configure(style="Config.Vertical.TScrollbar")
 
     def _browse_file(self, target: tk.Variable, title: str, filetypes: List[Tuple[str, str]] | None) -> None:
         selection = filedialog.askopenfilename(
@@ -298,24 +333,20 @@ class ConfigUI:
                 return
             self._scroll_canvas.yview(*args)
 
-        scrollbar = ttk.Scrollbar(
+        self._scrollbar = ttk.Scrollbar(
             scroll_container,
             orient="vertical",
-            command=yview,
+                command=yview,
             style="Config.Vertical.TScrollbar",
         )
-        scrollbar.grid(row=0, column=1, sticky="ns", padx=(10, 0))
-        self._scroll_canvas.configure(yscrollcommand=scrollbar.set)
+        self._scrollbar.grid(row=0, column=1, sticky="ns", padx=(10, 0))
+        self._scroll_canvas.configure(yscrollcommand=self._scrollbar.set)
 
         self._scroll_inner = ttk.Frame(self._scroll_canvas, style="Config.Card.TFrame")
         self._scroll_window = self._scroll_canvas.create_window((0, 0), window=self._scroll_inner, anchor="nw")
         self._scroll_inner.columnconfigure(1, weight=1)
-        self._scroll_inner.bind(
-            "<Configure>", lambda e: self._scroll_canvas.configure(scrollregion=self._scroll_canvas.bbox("all"))
-        )
-        self._scroll_canvas.bind(
-            "<Configure>", lambda e: self._scroll_canvas.itemconfigure(self._scroll_window, width=e.width)
-        )
+        self._scroll_inner.bind("<Configure>", self._handle_scroll_inner_configure)
+        self._scroll_canvas.bind("<Configure>", self._handle_canvas_configure)
         self._scroll_canvas.bind_all("<MouseWheel>", self._on_mousewheel)
 
         footer = ttk.Frame(card, padding=(20, 10, 20, 18), style="Config.Card.TFrame")
@@ -332,6 +363,7 @@ class ConfigUI:
 
         self._update_nav_styles()
         self._render_section(self._active_section)
+        self._schedule_scrollbar_update()
         
     def _configure_styles(self) -> None:
         style = ttk.Style(self._root)
@@ -384,6 +416,28 @@ class ConfigUI:
         )
         style.map("Config.Vertical.TScrollbar", background=[("active", ACCENT)])
         style.layout('Config.Vertical.TScrollbar', [(
+            'Vertical.Scrollbar.trough', {
+                'children': [(
+                    'Vertical.Scrollbar.thumb', {
+                        'expand': '1', 'sticky': 'nswe'
+                    }
+                )],
+                'sticky': 'ns'
+            }
+        )])
+        style.configure(
+            "Hidden.Scrollbar",
+            gripcount=0,
+            background=CARD_BG,
+            troughcolor=CARD_BG,
+            bordercolor=CARD_BG,
+            darkcolor=CARD_BG,
+            lightcolor=CARD_BG,
+            arrowsize=10,
+            relief="flat",
+        )
+        style.map("Hidden.Scrollbar", background=[("active", CARD_BG)])
+        style.layout('Hidden.Scrollbar', [(
             'Vertical.Scrollbar.trough', {
                 'children': [(
                     'Vertical.Scrollbar.thumb', {
@@ -458,6 +512,8 @@ class ConfigUI:
                 else:
                     entry = ttk.Entry(self._scroll_inner, textvariable=var, style="Config.TEntry", font=FONT)
                     entry.grid(row=row, column=1, sticky="ew", pady=4, padx=(12, 0))
+
+        self._schedule_scrollbar_update()
 
     def _on_mousewheel(self, event: tk.Event) -> None:
         if self._scroll_canvas:
