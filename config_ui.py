@@ -5,15 +5,16 @@ import ctypes
 import math
 import sys
 import tkinter as tk
-from ctypes import wintypes
 from tkinter import filedialog, messagebox, ttk
 from typing import Any, Dict, List, Tuple, Type
 
 from config import settings
 from PIL import Image, ImageDraw, ImageTk
+from utils.winapi_utils import TitleBarColor, TitleBarTextColor, BorderColor
 
 # Palette & sizing tuned for a clean layout that stays within the window
 WINDOW_BG = "#f5f6fa"
+WINDOW_BORDER = "#3b426e"
 CARD_BG = "#ffffff"
 NAV_BG = "#1f2432"
 ACCENT = "#5565ff"
@@ -26,101 +27,6 @@ TEXT_COLOR = "#1b1d29"
 FONT = ("Segoe UI", 12)
 TITLE_FONT = ("Segoe UI", 16, "bold")
 WINDOW_SIZE = "760x540"
-TRANSPARENT = 0x00000001
-
-DWMWA_USE_IMMERSIVE_DARK_MODE_OLD = 19
-DWMWA_USE_IMMERSIVE_DARK_MODE = 20
-DWMWA_CAPTION_COLOR = 35
-DWMWA_TEXT_COLOR = 36
-GA_ROOT = 2
-
-if sys.platform == "win32":
-    try:
-        _USER32 = ctypes.windll.user32
-    except Exception:
-        _USER32 = None
-    try:
-        _DWMAPI = ctypes.windll.dwmapi
-    except Exception:
-        _DWMAPI = None
-else:
-    _USER32 = None
-    _DWMAPI = None
-
-if _DWMAPI is not None:
-    _DwmSetWindowAttribute = _DWMAPI.DwmSetWindowAttribute
-    _DwmSetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, wintypes.LPVOID, wintypes.DWORD]
-    _DwmSetWindowAttribute.restype = ctypes.c_int
-else:
-    _DwmSetWindowAttribute = None
-
-
-def _hex_to_rgb_int(color: str) -> int:
-    value = color.lstrip("#")
-    return int(value, 16)
-
-
-def _rgb_to_colorref(rgb_hex: int) -> int:
-    r = (rgb_hex >> 16) & 0xFF
-    g = (rgb_hex >> 8) & 0xFF
-    b = rgb_hex & 0xFF
-    return (b << 16) | (g << 8) | r
-
-
-def _hwnd_to_int(handle: Any) -> int:
-    if isinstance(handle, int):
-        return handle
-    return getattr(handle, "value", 0) or 0
-
-
-def _resolve_toplevel_hwnd(hwnd_int: int) -> int:
-    if not hwnd_int or _USER32 is None:
-        return hwnd_int
-    try:
-        ancestor = _USER32.GetAncestor(wintypes.HWND(hwnd_int), GA_ROOT)
-        resolved = _hwnd_to_int(ancestor)
-        return resolved or hwnd_int
-    except Exception:
-        return hwnd_int
-
-
-def _set_dwm_attribute(hwnd_int: int, attribute: int, value_ptr, value_size: int) -> bool:
-    if not hwnd_int or _DwmSetWindowAttribute is None:
-        return False
-    try:
-        return _DwmSetWindowAttribute(hwnd_int, attribute, value_ptr, value_size) == 0
-    except Exception:
-        return False
-
-
-def _set_immersive_dark_mode(hwnd_int: int, enabled: bool) -> None:
-    flag = wintypes.BOOL(1 if enabled else 0)
-    if _set_dwm_attribute(hwnd_int, DWMWA_USE_IMMERSIVE_DARK_MODE, ctypes.byref(flag), ctypes.sizeof(flag)):
-        return
-    _set_dwm_attribute(hwnd_int, DWMWA_USE_IMMERSIVE_DARK_MODE_OLD, ctypes.byref(flag), ctypes.sizeof(flag))
-
-
-def _set_titlebar_colors(hwnd_int: int, caption_hex: str, text_hex: str) -> None:
-    if not hwnd_int:
-        return
-    caption = wintypes.DWORD(_rgb_to_colorref(_hex_to_rgb_int(caption_hex)))
-    _set_dwm_attribute(hwnd_int, DWMWA_CAPTION_COLOR, ctypes.byref(caption), ctypes.sizeof(caption))
-    text = wintypes.DWORD(_rgb_to_colorref(_hex_to_rgb_int(text_hex)))
-    _set_dwm_attribute(hwnd_int, DWMWA_TEXT_COLOR, ctypes.byref(text), ctypes.sizeof(text))
-
-
-def _apply_windows_titlebar_theme(root: tk.Tk, caption_hex: str, text_hex: str) -> None:
-    if sys.platform != "win32":
-        return
-    try:
-        hwnd = int(root.winfo_id())
-    except Exception:
-        return
-    top_hwnd = _resolve_toplevel_hwnd(hwnd)
-    if not top_hwnd:
-        return
-    _set_immersive_dark_mode(top_hwnd, True)
-    _set_titlebar_colors(top_hwnd, caption_hex, text_hex)
 
 FieldSpec = Tuple[str, str, Type[Any]]
 
@@ -266,7 +172,11 @@ class ConfigUI:
         self._icon_image = self._create_window_icon()
         if self._icon_image:
             self._root.iconphoto(True, self._icon_image)
-        self._root.after(100, self._apply_titlebar_theme)
+        self._root.after(100, self._on_ready)
+        
+    def _on_ready(self) -> None:
+        self._apply_titlebar_theme()
+        self._apply_border_color()
 
     def _apply_dpi_awareness(self) -> None:
         try:
@@ -278,7 +188,21 @@ class ConfigUI:
                 pass
 
     def _apply_titlebar_theme(self) -> None:
-        _apply_windows_titlebar_theme(self._root, NAV_BG, NAV_TEXT)
+        if sys.platform != "win32":
+            return
+        try:
+            TitleBarColor.set(self._root, NAV_BG)
+            TitleBarTextColor.set(self._root, NAV_ACTIVE_TEXT)
+        except Exception:
+            pass
+        
+    def _apply_border_color(self) -> None:
+        if sys.platform != "win32":
+            return
+        try:
+            BorderColor.set(self._root, WINDOW_BORDER)
+        except Exception:
+            pass
 
     def _create_window_icon(self) -> tk.PhotoImage:
         icon = _get_icon("window_icon")
