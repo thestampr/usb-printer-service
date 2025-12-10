@@ -1,4 +1,5 @@
 """Tkinter configuration editor for printer settings."""
+
 from __future__ import annotations
 
 import ctypes
@@ -6,13 +7,32 @@ import math
 import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-from typing import Any, Dict, List, Tuple, Type
+from typing import Any, Dict, List, Tuple, Type, Optional
+import atexit
 
 from config import settings
 from PIL import Image, ImageDraw, ImageTk
-from utils.winapi_utils import TitleBarColor, TitleBarTextColor, BorderColor
+
+try:
+    from utils.winapi_utils import (
+        TitleBarColor, 
+        TitleBarTextColor, 
+        BorderColor, 
+        WindowFrame,
+        get_window_from_title
+    )
+except ImportError:
+    print("[WARNING] winapi_utils could not be imported; Windows-specific features will be disabled.", file=sys.stderr)
+    
+    TitleBarColor = None
+    TitleBarTextColor = None
+    BorderColor = None
+    WindowFrame = None
+    def get_window_from_title(title: str) -> int:
+        return 0
 
 # Palette & sizing tuned for a clean layout that stays within the window
+WINDOW_TITLE = "Printer Configuration"
 WINDOW_BG = "#f5f6fa"
 WINDOW_BORDER = "#3b426e"
 CARD_BG = "#ffffff"
@@ -162,7 +182,7 @@ class ConfigUI:
         self._build_ui()
 
     def _configure_window(self) -> None:
-        self._root.title("Printer Configuration")
+        self._root.title(WINDOW_TITLE)
         self._root.configure(bg=WINDOW_BG)
         self._root.geometry(WINDOW_SIZE)
         self._root.minsize(720, 500)
@@ -559,11 +579,46 @@ class ConfigUI:
         self._root.eval('tk::PlaceWindow . center')
         self._root.mainloop()
 
+def _acquire_single_instance_mutex(name: str = "Global\\PrinterConfigMutex") -> Optional[int]:
+    """Create a named mutex; return handle if acquired, else None when already running or failed."""
+    
+    try:
+        k32 = ctypes.windll.kernel32
+        handle = k32.CreateMutexW(None, False, name)
+        if not handle:
+            return None
+        # ERROR_ALREADY_EXISTS = 183
+        already = k32.GetLastError() == 183
+        if already:
+            k32.CloseHandle(handle)
+            return None
+        return handle
+    except Exception:
+        return None
+    
+def _ensure_single_instance() -> bool:
+    """Ensure only a single instance of the config UI is running."""
+    
+    mutex = _acquire_single_instance_mutex()
+    if mutex is None:
+        try:
+            hwnd = get_window_from_title(WINDOW_TITLE)
+            try:
+                WindowFrame.foreground(hwnd)
+            except Exception:
+                pass
+        except Exception:
+            pass
+        return False
+    atexit.register(lambda: ctypes.windll.kernel32.ReleaseMutex(mutex) if mutex else None)
+    return True
 
 def launch_config_ui() -> None:
     """Launch the Tkinter configuration interface."""
-    ui = ConfigUI()
-    ui.run()
+    
+    if _ensure_single_instance():
+        ui = ConfigUI()
+        ui.run()
 
 
 if __name__ == "__main__":
