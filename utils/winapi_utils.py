@@ -14,6 +14,7 @@ import platform
 import threading
 import time
 from typing import Any, Dict, List, Tuple, Union
+from enum import Enum
 
 try:
     from ctypes.wintypes import HWND, RECT, UINT
@@ -71,6 +72,12 @@ accent_color_titlebars: List[int] = []
 accent_color_borders: List[int] = []
 
 WINDOWS_VERSION = float(platform.version().split(".")[0])
+
+
+class CornerStyle(Enum):
+    SQUARE = 1
+    ROUND = 2
+    ROUND_SMALL = 3
 
 
 class FLASHWINFO(ctypes.Structure):
@@ -590,19 +597,25 @@ class WindowFrame:
         hwnd = module_find(window)
         ctypes.windll.user32.ShowWindow(hwnd, 9)
 
+    @staticmethod
+    def foreground(window: Any) -> None:
+        hwnd = module_find(window)
+        ctypes.windll.user32.SetForegroundWindow(hwnd)
+
 
 class CornerRadius:
     """Control rounded corner preferences on Windows 11+."""
 
     @staticmethod
-    def set(window: Any, style: str = "round") -> None:
-        normalized = style.lower().replace(" ", "-")
-        options = {"square": 1, "round": 2, "round-small": 3}
-        if normalized not in options:
-            raise ValueError('Style must be "square", "round", or "round-small"')
+    def set(window: Any, style: CornerStyle = CornerStyle.ROUND) -> None:
+        if WINDOWS_VERSION < 11.0:
+            raise RuntimeError("Corner radius control requires Windows 11 or later")
+        
+        if not isinstance(style, CornerStyle):
+            raise ValueError('Style must be an instance of CornerStyle Enum')
 
         hwnd = module_find(window)
-        value = ctypes.c_int(options[normalized])
+        value = ctypes.c_int(style.value)
         ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 33, ctypes.byref(value), 4)
 
     @staticmethod
@@ -703,6 +716,13 @@ def module_find(window: Any) -> int:
     return window
 
 
+def get_window_from_title(title: str) -> int:
+    hwnd = ctypes.windll.user32.FindWindowW(None, title)
+    if hwnd == 0:
+        raise ValueError(f'No window found with title: "{title}"')
+    return hwnd
+
+
 def _get_window_text(hwnd: int) -> str:
     buffer = ctypes.create_unicode_buffer(1024)
     ctypes.windll.user32.GetWindowTextW(hwnd, buffer, 1024)
@@ -727,4 +747,5 @@ __all__ = [
     "convert_color",
     "get_accent_color",
     "module_find",
+    "get_window_from_title",
 ]
