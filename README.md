@@ -11,24 +11,6 @@ Python-based receipt printing system for XP-58 / XP-58IIH ESC/POS printers with 
 - Optional header/footer text and image customization
 - Windows Win32Raw printing with `pywin32`
 
-## Project Structure
-
-```
-config/
-  settings.py
-  settings.json
-printer/
-  driver.py
-  utils.py
-  template.py
-server/
-  app.py
-main.py
-cli.py
-printer.bat
-PRINTER_CLI.md
-```
-
 ## Installation
 
 1. Install Python 3.10+ on Windows.
