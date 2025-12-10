@@ -20,7 +20,8 @@ Python-based receipt printing system for XP-58 / XP-58IIH ESC/POS printers with 
   setup.cmd
    ```
    This installs `virtualenv`, creates `.venv`, installs `requirements.txt`, and appends the project's `bin` folder to your user `PATH`.
-4. Make sure the Sarabun font files under `assets/fonts/Sarabun/` exist; update `config/settings.json` (or the config UI) if using a different path.
+
+Note: Make sure the Sarabun font files under `assets/fonts/Sarabun/` exist.
 
 ## Running the Flask API
 
@@ -75,10 +76,11 @@ Quick example:
 printer --payload receipts/demo.json --port USB001:"XP-58 (copy 1)"
 ```
 
-Open the configuration UI instead of printing:
+You can run the Flask API directly from the CLI (default host/port come from the current configuration):
 
 ```cmd
-printer --config
+printer --serve
+printer --serve localhost:6000
 ```
 
 ## Opening the Cash Drawer
@@ -93,15 +95,21 @@ open-drawer
 
 ## Configuration
 
-All defaults live in `config/settings.json`. You can edit the JSON directly or launch the Tkinter UI (`printer --config` or `python config_ui.py`) for a minimal form-based editor.
+Use the configuration UI 
+
+```cmd
+printer --config
+```
+
+to adjust printer, layout, and service settings.
 
 - Printer queue name/port
-- Header/footer text and images
+- Header/footer text and images (with file pickers)
 - Layout defaults (font size, currency, units)
 - Service host/port/debug flags
 
 ## Development Tips
 
 - Use the `printer` CLI for rapid manual testing without running the server.
-- For debugging prints enable logging via `logging.basicConfig(level=logging.DEBUG)` early in `main.py` or `cli.py`.
+- For debugging prints enable logging via `logging.basicConfig(level=logging.DEBUG)` early in `main.py` or `printer_cli.py`.
 - Keep the printer driver connected to the exact Windows queue name (e.g., `XP-58 (copy 1)`).

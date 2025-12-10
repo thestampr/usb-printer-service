@@ -11,6 +11,7 @@ from config import settings
 from config_ui import launch_config_ui
 from printer.driver import ReceiptPrinter
 from printer.template import build_info_page, build_receipt_text, validate_payload
+from server.app import create_app
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -43,6 +44,12 @@ def parse_arguments() -> argparse.Namespace:
         "--test",
         action="store_true",
         help="Print a test page that summarizes the current printer settings",
+    )
+    parser.add_argument(
+        "--serve",
+        nargs="?",
+        const="",
+        help="Run the Flask API server (optionally specify host:port)",
     )
     return parser.parse_args()
 
@@ -88,8 +95,38 @@ def build_layout(args: argparse.Namespace) -> dict:
     return layout
 
 
+def parse_serve_address(value: str | None) -> tuple[str, int]:
+    default_host = settings.SERVICE.get("host", "0.0.0.0")
+    default_port = settings.SERVICE.get("port", 5000)
+    if value in (None, ""):
+        return default_host, default_port
+    if ":" not in value:
+        raise ValueError("--serve expects host:port")
+    host, port_str = value.split(":", 1)
+    host = host or default_host
+    try:
+        port = int(port_str)
+    except ValueError as exc:
+        raise ValueError("Port in --serve must be an integer") from exc
+    if port <= 0 or port > 65535:
+        raise ValueError("Port in --serve must be between 1 and 65535")
+    return host, port
+
+
 def main() -> int:
     args = parse_arguments()
+
+    if args.serve is not None:
+        try:
+            host, port = parse_serve_address(args.serve)
+        except ValueError as exc:
+            print(f"[ERROR] {exc}", file=sys.stderr)
+            return 2
+
+        app = create_app()
+        debug = settings.SERVICE.get("debug", False)
+        app.run(host=host, port=port, debug=debug)
+        return 0
 
     if args.config:
         launch_config_ui()
