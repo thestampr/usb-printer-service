@@ -48,19 +48,18 @@ if not exist "%TARGET%" (
     echo [WARN] %TARGET% does not exist; skipping PATH update.
     goto :eof
 )
-set "CURRENT_PATH="
-for /f "tokens=1*" %%A in ('reg query "HKCU\Environment" /v PATH 2^>nul ^| findstr /R /C:"PATH"') do (
-    set "CURRENT_PATH=%%B"
-)
-if not defined CURRENT_PATH set "CURRENT_PATH=%PATH%"
 
-echo !CURRENT_PATH! | findstr /I /C:"%TARGET%" >nul
-if errorlevel 1 (
-    echo [INFO] Adding %TARGET% to user PATH...
-    setx PATH "!CURRENT_PATH!;%TARGET%" >nul
-) else (
-    echo [INFO] %TARGET% already present in PATH. Skipping.
-)
+echo [INFO] Checking if %TARGET% is in PATH...
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+    "$target = '%TARGET%'; " ^
+    "$key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true); " ^
+    "$path = $key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames); " ^
+    "if ($path -split ';' -contains $target) { Write-Host '[INFO] Target already in PATH.' } " ^
+    "else { " ^
+    "   $newPath = $path + ';' + $target; " ^
+    "   $key.SetValue('Path', $newPath, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames); " ^
+    "   Write-Host '[INFO] Successfully added to PATH.' " ^
+    "}"
 goto :eof
 
 :error
