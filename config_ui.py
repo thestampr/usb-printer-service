@@ -13,6 +13,9 @@ import atexit
 from config import settings
 from PIL import Image, ImageDraw, ImageTk
 
+from printer.driver import ReceiptPrinter
+from printer.template import build_info_page, build_receipt_text
+
 try:
     from utils.winapi_utils import (
         TitleBarColor, 
@@ -105,6 +108,13 @@ FILE_PICKER_FIELDS: Dict[Tuple[str, str], Dict[str, Any]] = {
     },
 }
 
+MULTILINE_FIELDS = {
+    ("LAYOUT", "header_title"),
+    ("LAYOUT", "header_description"),
+    ("LAYOUT", "receipt_title"),
+    ("LAYOUT", "footer_label"),
+}
+
 def _get_icon(name: str = "") -> Image.Image:
     if not hasattr(_get_icon, "icon_cache"):
         _get_icon.icon_cache = {}
@@ -178,8 +188,64 @@ class ConfigUI:
         self._scrollbar: ttk.Scrollbar | None = None
         self._scroll_window: int | None = None
         self._section_title: ttk.Label | None = None
+        self._save_btn: ttk.Button | None = None
+        self._cancel_btn: ttk.Button | None = None
         self._init_variables()
         self._build_ui()
+
+    def _get_typed_value(self, value: Any, field_type: Type) -> Any:
+        """Convert a string value to the specified type."""
+        if field_type is bool:
+            return bool(value)
+        if field_type is int:
+            try:
+                return int(value)
+            except (ValueError, TypeError):
+                return 0
+        return str(value)
+
+    def _get_current_ui_config(self) -> Dict[str, Dict[str, Any]]:
+        """Collect current values from all UI variables into a config dictionary."""
+        config = {section: {} for section in FIELD_SPECS}
+        for (section, key), (var, field_type) in self._variables.items():
+            if key == "-": continue
+            config[section][key] = self._get_typed_value(var.get(), field_type)
+        return config
+
+    def _apply_config_to_ui(self, config: Dict[str, Dict[str, Any]]) -> None:
+        """Update UI variables with values from the provided config dictionary."""
+        for (section, key), (var, field_type) in self._variables.items():
+            if key == "-": continue
+            val = config.get(section, {}).get(key, "")
+            # Handle None or missing values gracefully
+            if val is None:
+                val = ""
+            
+            if field_type is bool:
+                var.set(bool(val))
+            else:
+                var.set(str(val))
+
+    def _check_dirty(self, *args) -> None:
+        """Check if any variable differs from the saved data and enable/disable buttons."""
+        if not self._save_btn:
+            return
+
+        is_dirty = False
+        for (section, key), (var, field_type) in self._variables.items():
+            if key == "-": continue
+            
+            current = self._get_typed_value(var.get(), field_type)
+            original = self._get_typed_value(self._data.get(section, {}).get(key), field_type)
+            
+            if current != original:
+                is_dirty = True
+                break
+        
+        state = "!disabled" if is_dirty else "disabled"
+        self._save_btn.state([state])
+        if self._cancel_btn:
+            self._cancel_btn.state([state])
 
     def _configure_window(self) -> None:
         self._root.title(WINDOW_TITLE)
@@ -197,6 +263,7 @@ class ConfigUI:
         self._root.bind("<Configure>", self._handle_window_configure)
         self._root.bind("<Map>", self._handle_window_state)
         self._root.bind("<Unmap>", self._handle_window_state)
+        self._root.protocol("WM_DELETE_WINDOW", self._try_close_window)
         
     def _on_ready(self) -> None:
         self._apply_titlebar_theme()
@@ -284,6 +351,10 @@ class ConfigUI:
                     var: tk.Variable = tk.BooleanVar(value=bool(value))
                 else:
                     var = tk.StringVar(value=str(value))
+                
+                
+                # key == "-" is skipped above, so we only bind actual fields
+                var.trace_add("write", self._check_dirty)
                 self._variables[(section, key)] = (var, field_type)
 
     def _build_ui(self) -> None:
@@ -299,27 +370,29 @@ class ConfigUI:
         nav_frame.rowconfigure(1, weight=1)
 
         for section in FIELD_SPECS:
-            btn = tk.Button(
-                nav_frame,
-                text=section.title(),
-                font=("Segoe UI", 10),
-                relief="sunken",
-                bd=0,
-                width=22,
-                padx=12,
-                pady=10,
-                borderwidth=0,
-                anchor="w",
-                justify="left",
-                fg=NAV_TEXT,
-                bg=NAV_BG,
-                activebackground=ACCENT,
-                activeforeground=NAV_ACTIVE_TEXT,
-                command=lambda s=section: self._select_section(s),
-                cursor="hand2",
-            )
-            btn.pack(fill="x", pady=(0, 6))
-            self._nav_buttons[section] = btn
+            self._create_nav_button(nav_frame, section)
+
+        # Print Test Button at the bottom of sidebar (ADDED)
+        test_btn = tk.Button(
+            nav_frame,
+            text="Print Test",
+            font=("Segoe UI", 10, "bold"),
+            relief="sunken",
+            bd=0,
+            width=22,
+            padx=12,
+            pady=10,
+            borderwidth=0,
+            anchor="w",
+            justify="left",
+            fg=NAV_ACTIVE_TEXT,
+            bg="#2c3e50",  # Slightly different bg to distinguish
+            activebackground="#34495e", 
+            activeforeground="#ffffff",
+            command=self._print_test,
+            cursor="hand2",
+        )
+        test_btn.pack(side="bottom", fill="x", pady=20)
 
         card = ttk.Frame(container, padding=0, style="Config.Card.TFrame")
         card.grid(row=0, column=1, sticky="nsew")
@@ -378,8 +451,14 @@ class ConfigUI:
             command=self._reset_defaults,
             cursor="hand2"
         ).pack(side="left")
-        ttk.Button(footer, text="Save", style="Config.Primary.TButton", command=self._save, cursor="hand2").pack(side="right", padx=(6, 0))
-        ttk.Button(footer, text="Cancel", style="Config.TButton", command=self._root.destroy, cursor="hand2").pack(side="right")
+        
+        self._save_btn = ttk.Button(footer, text="Save", style="Config.Primary.TButton", command=self._save, cursor="hand2")
+        self._save_btn.pack(side="right", padx=(6, 0))
+        self._save_btn.state(["disabled"])  # Initially disabled
+
+        self._cancel_btn = ttk.Button(footer, text="Cancel", style="Config.TButton", command=self._revert_changes, cursor="hand2")
+        self._cancel_btn.pack(side="right")
+        self._cancel_btn.state(["disabled"])  # Initially disabled
 
         self._update_nav_styles()
         self._render_section(self._active_section)
@@ -419,7 +498,10 @@ class ConfigUI:
             borderwidth=0,
             cursor="hand2",
         )
-        style.map("Config.Primary.TButton", background=[("active", ACCENT_HOVER)], foreground=[("active", "#ffffff")])
+        style.map("Config.Primary.TButton", 
+            background=[("disabled", "#e4e7f2"), ("active", ACCENT_HOVER)], 
+            foreground=[("disabled", "#aeb4c8"), ("active", "#ffffff")]
+        )
         style.map("Config.Separator.TSeparator", background=[("!disabled", BORDER_COLOR)])
         style.configure("Config.TCheckbutton", background=CARD_BG, font=FONT, relief="flat", borderwidth=0)
         style.map("Config.TCheckbutton", background=[("active", CARD_BG)], foreground=[("active", TEXT_COLOR)])
@@ -493,47 +575,100 @@ class ConfigUI:
     def _render_section(self, section: str) -> None:
         if not self._scroll_inner or not self._section_title:
             return
+            
         for child in self._scroll_inner.winfo_children():
             child.destroy()
 
         self._section_title.configure(text=section.title())
-        fields = FIELD_SPECS[section]
-
-        for row, (key, label, field_type) in enumerate(fields):
-            var, _ = self._variables[(section, key)]
-            if field_type is bool:
-                check = ttk.Checkbutton(self._scroll_inner, text=label, variable=var, style="Config.TCheckbutton", cursor="hand2")
-                check.grid(row=row, column=0, columnspan=2, sticky="w", pady=4)
-            elif key == "-":
-                sep_frame = ttk.Frame(self._scroll_inner, style="Config.Card.TFrame")
-                sep_frame.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(12, 8))
-                label = ttk.Label(sep_frame, text=label, font=TITLE_FONT, style="Config.TLabel")
-                label.pack(fill="x")
-                sep = tk.Frame(sep_frame, height=1, bg=BORDER_COLOR)
-                sep.pack(fill="x", pady=4)
-            else:
-                ttk.Label(self._scroll_inner, text=label, style="Config.TLabel", width=20).grid(row=row, column=0, sticky="w", pady=4)
-                picker = FILE_PICKER_FIELDS.get((section, key))
-                if picker:
-                    field_frame = ttk.Frame(self._scroll_inner, style="Config.Card.TFrame")
-                    field_frame.grid(row=row, column=1, sticky="ew", pady=4, padx=(12, 0))
-                    field_frame.columnconfigure(0, weight=1)
-                    entry = ttk.Entry(field_frame, textvariable=var, style="Config.TEntry", font=FONT, state="readonly", cursor="arrow")
-                    entry.grid(row=0, column=0, sticky="ew")
-                    browse_cmd = lambda v=var, cfg=picker: [self._browse_file(v, cfg.get("title", "Select File"), cfg.get("filetypes"))]
-                    # clear_cmd = lambda v=var: [v.set("")]
-                    ttk.Button(
-                        field_frame,
-                        text="Browse",
-                        style="Config.TButton",
-                        command=browse_cmd,
-                        cursor="hand2",
-                    ).grid(row=0, column=1, padx=(8, 0))
-                else:
-                    entry = ttk.Entry(self._scroll_inner, textvariable=var, style="Config.TEntry", font=FONT)
-                    entry.grid(row=row, column=1, sticky="ew", pady=4, padx=(12, 0))
+        for row, (key, label, field_type) in enumerate(FIELD_SPECS[section]):
+            self._create_field_row(self._scroll_inner, section, key, label, field_type, row)
 
         self._schedule_scrollbar_update()
+
+    def _create_field_row(self, parent: tk.Widget, section: str, key: str, label: str, field_type: Any, row: int) -> None:
+        var, _ = self._variables[(section, key)]
+
+        if field_type is bool:
+            ttk.Checkbutton(parent, text=label, variable=var, style="Config.TCheckbutton", cursor="hand2") \
+                .grid(row=row, column=0, columnspan=2, sticky="w", pady=4)
+            return
+
+        if key == "-":
+            frame = ttk.Frame(parent, style="Config.Card.TFrame")
+            frame.grid(row=row, column=0, columnspan=2, sticky="ew", pady=(12, 8))
+            ttk.Label(frame, text=label, font=TITLE_FONT, style="Config.TLabel").pack(fill="x")
+            tk.Frame(frame, height=1, bg=BORDER_COLOR).pack(fill="x", pady=4)
+            return
+
+        # Label for standard fields
+        ttk.Label(parent, text=label, style="Config.TLabel", width=20, anchor="nw") \
+            .grid(row=row, column=0, sticky="nw", pady=(8, 4))
+
+        # 1. Multiline Text
+        if (section, key) in MULTILINE_FIELDS:
+            txt = tk.Text(
+                parent, height=3, font=FONT, bg=FIELD_BG, fg=TEXT_COLOR,
+                relief="flat", highlightthickness=1, highlightbackground=BORDER_COLOR,
+                highlightcolor=ACCENT, padx=6, pady=6
+            )
+            txt.grid(row=row, column=1, sticky="ew", pady=4, padx=(12, 0))
+            txt.insert("1.0", var.get())
+
+            def on_text_change(event):
+                var.set(txt.get("1.0", "end-1c"))
+            
+            def update_text_from_var(*args):
+                if txt.get("1.0", "end-1c") != var.get():
+                    txt.delete("1.0", "end")
+                    txt.insert("1.0", var.get())
+
+            txt.bind("<KeyRelease>", on_text_change)
+            var.trace_add("write", update_text_from_var)
+            return
+
+        # 2. File Picker
+        picker_cfg = FILE_PICKER_FIELDS.get((section, key))
+        if picker_cfg:
+            frame = ttk.Frame(parent, style="Config.Card.TFrame")
+            frame.grid(row=row, column=1, sticky="ew", pady=4, padx=(12, 0))
+            frame.columnconfigure(0, weight=1)
+            
+            ttk.Entry(frame, textvariable=var, style="Config.TEntry", font=FONT, state="readonly", cursor="arrow") \
+                .grid(row=0, column=0, sticky="ew")
+                
+            cmd = lambda: self._browse_file(var, picker_cfg["title"], picker_cfg["filetypes"])
+            ttk.Button(frame, text="Browse", style="Config.TButton", command=cmd, cursor="hand2") \
+                .grid(row=0, column=1, padx=(8, 0))
+            return
+
+        # 3. Standard Entry
+        ttk.Entry(parent, textvariable=var, style="Config.TEntry", font=FONT) \
+            .grid(row=row, column=1, sticky="ew", pady=4, padx=(12, 0))
+
+        self._schedule_scrollbar_update()
+
+    def _create_nav_button(self, parent: tk.Widget, section: str) -> None:
+        btn = tk.Button(
+            parent,
+            text=section.title(),
+            font=("Segoe UI", 10),
+            relief="sunken",
+            bd=0,
+            width=22,
+            padx=12,
+            pady=10,
+            borderwidth=0,
+            anchor="w",
+            justify="left",
+            fg=NAV_TEXT,
+            bg=NAV_BG,
+            activebackground=ACCENT,
+            activeforeground=NAV_ACTIVE_TEXT,
+            command=lambda s=section: self._select_section(s),
+            cursor="hand2",
+        )
+        btn.pack(fill="x", pady=(0, 6))
+        self._nav_buttons[section] = btn
 
     def _on_mousewheel(self, event: tk.Event) -> None:
         if self._scroll_canvas:
@@ -546,34 +681,91 @@ class ConfigUI:
             self._scroll_canvas.yview_scroll(int(-1 * (event.delta / 120)), "units")
 
     def _reset_defaults(self) -> None:
-        defaults = settings.get_defaults()
-        for (section, key), (var, field_type) in self._variables.items():
-            value = defaults.get(section, {}).get(key, "")
-            if field_type is bool:
-                var.set(bool(value))
-            else:
-                var.set("" if value is None else str(value))
+        if not messagebox.askyesno("Reset Defaults", "Are you sure you want to reset all settings to defaults?\nThis cannot be undone."):
+            return
+        self._apply_config_to_ui(settings.get_defaults())
+
+    def _revert_changes(self) -> None:
+        """Revert changes to the last saved state."""
+        self._apply_config_to_ui(self._data)
 
     def _save(self) -> None:
-        updated = settings.get_all()
         try:
-            for (section, key), (var, field_type) in self._variables.items():
-                if key == "-": continue
-                value = var.get()
-                if field_type is int:
-                    value = int(value)
-                elif field_type is bool:
-                    value = bool(value)
-                else:
-                    value = str(value)
-                updated[section][key] = value
+            updated = self._get_current_ui_config()
         except ValueError as exc:
             messagebox.showerror("Invalid Value", f"Please enter valid values for all fields.\n{exc}")
             return
 
         settings.save_all(updated)
         messagebox.showinfo("Saved", "Configuration updated successfully.")
+        
+        self._data = updated
+        self._check_dirty()
+        self._root.focus_set()
+
+    def _try_close_window(self) -> None:
+        """Handle window close request, checking for unsaved changes."""
+        if self._save_btn and "disabled" not in self._save_btn.state():
+            if not messagebox.askyesno("Unsaved Changes", "You have unsaved changes.\nAre you sure you want to exit without saving?"):
+                return
         self._root.destroy()
+    
+    def _print_test(self) -> None:
+        """Gather current settings and print a test page simulating a real receipt."""
+        try:
+            current_config = self._get_current_ui_config()
+            printer_cfg = current_config.get("PRINTER", {})
+            layout_cfg = current_config.get("LAYOUT", {})
+
+            # Dummy payload simulating a transaction
+            dummy_payload = {
+                "items": [
+                    {"name": "Gasoline 95", "amount": 40.5, "quantity": 30.0},
+                    {"name": "Water Bottle", "amount": 10.0, "quantity": 1.0},
+                ],
+                "total": 1225.0,
+                "customer": {
+                    "name": "Test Customer",
+                    "code": "CUST-0099"
+                },
+                "points": 120,
+                "transection": "TXN-TEST-1234",
+            }
+
+            receipt_text = build_receipt_text(dummy_payload, layout_overrides=layout_cfg)
+
+            # Print
+            printer = ReceiptPrinter(printer_cfg)
+            try:
+                # 1. Header Image
+                header_image_path = layout_cfg.get("header_image")
+                if header_image_path:
+                    try:
+                        printer.print_image(header_image_path)
+                    except Exception as e:
+                        print(f"[WARN] Failed to print header image: {e}")
+
+                # 2. Receipt Text
+                printer.print_text(receipt_text)
+
+                # 3. Footer Image
+                footer_image_path = layout_cfg.get("footer_image")
+                if footer_image_path:
+                    try:
+                        printer.print_image(footer_image_path)
+                    except Exception as e:
+                        print(f"[WARN] Failed to print footer image: {e}")
+
+                printer.feed(2)
+                printer.cut()
+                messagebox.showinfo("Success", "Test receipt sent to printer.")
+            except Exception as e:
+                messagebox.showerror("Print Error", f"Failed to print:\n{e}")
+            finally:
+                printer.disconnect()
+                
+        except ValueError as e:
+            messagebox.showerror("Configuration Error", f"Invalid printer settings:\n{e}")
 
     def run(self) -> None:
         self._root.eval('tk::PlaceWindow . center')
