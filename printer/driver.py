@@ -1,39 +1,31 @@
 """Receipt printer driver targeting ESC/POS USB thermal printers."""
+
 from __future__ import annotations
 
 import importlib
 import logging
 from pathlib import Path
-from typing import Optional, Tuple, TYPE_CHECKING
+from typing import Optional
 
-from config.settings import LAYOUT, PRINTER
-from printer.utils import (
-    ALIGN_CENTER_TOKEN,
-    ALIGN_LEFT_TOKEN,
-    ALIGN_RIGHT_TOKEN,
-    SMALL_TEXT_TOKEN,
-    get_real_path
-)
+from config.settings import PRINTER
+from printer.utils import get_real_path
 
 try:
-    from PIL import Image, ImageDraw, ImageFont
-except ImportError:  # pragma: no cover
-    Image = ImageDraw = ImageFont = None
+    from PIL import Image
+except ImportError:
+    Image = ImageDraw = None
 
-try:  # pragma: no cover - resolved only when optional dependency installed
+try:
     escpos_printer = importlib.import_module("escpos.printer")
-except ModuleNotFoundError:  # pragma: no cover - library might not be installed locally
+except ModuleNotFoundError:
     escpos_printer = None
-try:  # pragma: no cover - optional win32 dependency
+try:
     importlib.import_module("win32print")
     WIN32PRINT_AVAILABLE = True
-except ModuleNotFoundError:  # pragma: no cover - warn later during connect
+except ModuleNotFoundError:
     WIN32PRINT_AVAILABLE = False
 
 LOGGER = logging.getLogger(__name__)
-
-if TYPE_CHECKING:
-    import PIL.Image
 
 
 class ReceiptPrinter:
@@ -44,15 +36,10 @@ class ReceiptPrinter:
         self.device = None
         self.encoding = self.config.get("encoding", "utf-8")
         self.pixel_width = self.config.get("pixel_width", 384)
-        self.font = LAYOUT.get("font_family", "Sarabun-SemiBold")
-        self.font_path = get_real_path(LAYOUT.get("font_path", "assets/fonts/Sarabun/Sarabun-SemiBold.ttf"))
-        self.font_size = LAYOUT.get("font_size", 24)
-        self.font_size_small = LAYOUT.get("font_size_small", max(12, self.font_size - 6))
-        self.line_spacing = LAYOUT.get("line_spacing", 6)
-        self._font_cache = {}
 
     def connect(self):
         """Connect to the configured printer using Win32Raw or fallback."""
+        
         if self.device is not None:
             return self.device
         if escpos_printer is None:
@@ -74,135 +61,41 @@ class ReceiptPrinter:
 
         return self.device
 
-    def print_text(self, text: str) -> None:
-        """Render text using Sarabun font and send as bitmap image."""
-        if not text:
-            return
-        if Image is None or ImageDraw is None or ImageFont is None:
-            raise RuntimeError("Pillow is not installed; cannot render Thai text as image")
-        if not self.font_path.exists():
-            raise RuntimeError(f"Font file not found: {self.font_path}")
-
-        LOGGER.debug("Printing text block (%d chars)", len(text))
-
-        lines_meta = self._prepare_lines(text)
-        total_height = sum(meta[3] for meta in lines_meta)
-        if total_height <= 0:
-            total_height = self.font_size + self.line_spacing
-
-        # Create white canvas for black text
-        image = Image.new("1", (self.pixel_width, total_height), 1)
-        draw = ImageDraw.Draw(image)
-
-        y_offset = 0
-        for content, alignment, font, line_height in lines_meta:
-            if not content:
-                y_offset += line_height
-                continue
-
-            bbox = draw.textbbox((0, 0), content, font=font)
-            line_width = (bbox[2] - bbox[0]) if bbox else 0
-            if alignment == "center":
-                x_offset = max(0, (self.pixel_width - line_width) // 2)
-            elif alignment == "right":
-                x_offset = max(0, self.pixel_width - line_width)
-            else:
-                x_offset = 0
-
-            draw.text((x_offset, y_offset), content, font=font, fill=0)
-            y_offset += line_height
-
-        # Crop excess white space at bottom
-        bbox = image.getbbox()
-        if bbox:
-            image = image.crop((0, 0, self.pixel_width, bbox[3] + self.line_spacing))
-
-        device = self.connect()
-        try:
-            device.image(image, impl="bitImageColumn")
-        except Exception as exc:
-            LOGGER.error("Failed to print rendered text image: %s", exc)
-            raise RuntimeError("Failed to print text as image") from exc
-
-    def _prepare_lines(self, text: str):
-        lines_meta = []
-        for raw_line in text.splitlines():
-            content, alignment, font_size = self._extract_line_style(raw_line)
-            font = self._get_font(font_size)
-            line_height = font_size + self.line_spacing
-            lines_meta.append((content, alignment, font, line_height))
-        return lines_meta
-
-    def _extract_line_style(self, line: str) -> Tuple[str, str, int]:
-        text = line
-        alignment = "left"
-        font_size = self.font_size
-
-        while True:
-            updated = False
-            if text.startswith(ALIGN_CENTER_TOKEN):
-                alignment = "center"
-                text = text[len(ALIGN_CENTER_TOKEN):]
-                updated = True
-            elif text.startswith(ALIGN_RIGHT_TOKEN):
-                alignment = "right"
-                text = text[len(ALIGN_RIGHT_TOKEN):]
-                updated = True
-            elif text.startswith(ALIGN_LEFT_TOKEN):
-                alignment = "left"
-                text = text[len(ALIGN_LEFT_TOKEN):]
-                updated = True
-            elif text.startswith(SMALL_TEXT_TOKEN):
-                font_size = self.font_size_small
-                text = text[len(SMALL_TEXT_TOKEN):]
-                updated = True
-
-            if not updated:
-                break
-
-        return text, alignment, font_size
-
-    def _get_font(self, size: int):
-        if size in self._font_cache:
-            return self._font_cache[size]
-        try:
-            font = ImageFont.truetype(str(self.font_path), size)
-        except Exception as exc:
-            LOGGER.error("Failed to load font %s at size %s: %s", self.font_path, size, exc)
-            raise RuntimeError("Failed to load Sarabun font") from exc
-        self._font_cache[size] = font
-        return font
-
-    def print_image(self, path: str | Path) -> None:
+    def print_image(self, path: str | Path | "Image.Image", scale: int = 100) -> None:
         if not path:
             return
-        image_path = get_real_path(path)
-        if not image_path.exists():
-            LOGGER.warning("Header image %s not found; skipping", path)
-            return
-        LOGGER.debug("Printing image %s", image_path)
 
         device = self.connect()
 
-        if Image is None:  # Pillow not available; send raw file
+        if isinstance(path, Image.Image):
+            pil_image = path
+            LOGGER.debug("Printing PIL Image object (scale=%s%%)", scale)
+        else:
+            image_path = get_real_path(path)
+            if not image_path.exists():
+                LOGGER.warning("Header image %s not found; skipping", path)
+                return
+            LOGGER.debug("Printing image %s (scale=%s%%)", image_path, scale)
+
+            if Image is None:
+                try:
+                    device.image(str(image_path))
+                except Exception as exc:
+                    LOGGER.error("Failed to print image %s: %s", image_path, exc)
+                    raise RuntimeError("Failed to print header image") from exc
+                return
+
             try:
-                device.image(str(image_path))
-            except Exception as exc:  # pragma: no cover - hardware specific
-                LOGGER.error("Failed to print image %s: %s", image_path, exc)
-                raise RuntimeError("Failed to print header image") from exc
-            return
+                pil_image = Image.open(image_path)
+            except Exception as exc:
+                LOGGER.error("Failed to open image %s: %s", image_path, exc)
+                raise RuntimeError("Failed to open image for printing") from exc
 
-        try:
-            pil_image = Image.open(image_path)
-        except Exception as exc:
-            LOGGER.error("Failed to open image %s: %s", image_path, exc)
-            raise RuntimeError("Failed to open image for printing") from exc
-
-        processed = self._prepare_bitmap(pil_image)
+        processed = self._prepare_bitmap(pil_image, scale)
 
         try:
             device.image(processed, impl="bitImageColumn")
-        except Exception as exc:  # pragma: no cover - hardware specific
+        except Exception as exc:
             LOGGER.error("Failed to print processed image %s: %s", image_path, exc)
             raise RuntimeError("Failed to print header image") from exc
 
@@ -220,10 +113,6 @@ class ReceiptPrinter:
         try:
             device.cashdraw(pin)
         except AttributeError:
-            # Fallback if cashdraw method is missing or using a driver that doesn't support it
-            # Standard ESC/POS kick drawer command: ESC p m t1 t2
-            # m=0 (pin 2), m=1 (pin 5)
-            # t1=25, t2=250 (pulse duration)
             LOGGER.debug("Using raw ESC/POS command for drawer kick")
             if pin == 2:
                 device.text("\x1b\x70\x00\x19\xfa")
@@ -239,7 +128,7 @@ class ReceiptPrinter:
         device = self.connect()
         try:
             device.text("\n" * int(lines))
-        except Exception as exc:  # pragma: no cover - hardware specific
+        except Exception as exc:
             LOGGER.error("Failed to feed printer %s lines: %s", lines, exc)
             raise RuntimeError("Failed to feed paper") from exc
 
@@ -250,25 +139,41 @@ class ReceiptPrinter:
         if callable(close_fn):
             try:
                 close_fn()
-            except Exception:  # pragma: no cover - best-effort cleanup
+            except Exception:
                 LOGGER.debug("Failed to close printer device", exc_info=True)
         self.device = None
 
-    def _prepare_bitmap(self, image: "PIL.Image.Image"):
+    def _prepare_bitmap(self, image: "Image.Image", scale: int = 100):
         if image.mode != "L":
             image = image.convert("L")
 
         if image.width == 0 or image.height == 0:
             raise RuntimeError("Image has invalid dimensions")
 
-        scale_ratio = min(1.0, self.pixel_width / float(image.width))
-        if scale_ratio != 1.0:
-            new_width = max(1, int(image.width * scale_ratio))
-            new_height = max(1, int(image.height * scale_ratio))
+        # Determine target width based on percentage of paper width (pixel_width)
+        # scale=100 means use full paper width
+        target_width = int(self.pixel_width * (scale / 100.0))
+        target_width = max(1, target_width)
+
+        # Calculate ratio to resize image to strictly fit/match target_width
+        # We usually want to maintain aspect ratio
+        scale_ratio = target_width / float(image.width)
+        
+        # Note: If scale=100 and image is larger than pixel_width, this downscales it (good).
+        # If image is smaller, this upscales it (pixelated, but fits request "Fit to Width").
+        # If user wants native size, they'd have to calculate %? 
+        # But generally for receipts, fitting/centering is desired behavior.
+        
+        new_width = max(1, int(image.width * scale_ratio))
+        new_height = max(1, int(image.height * scale_ratio))
+        
+        # Only resize if necessary (optimization, though float comparison might be fuzzy)
+        if new_width != image.width or new_height != image.height:
             image = image.resize((new_width, new_height), Image.LANCZOS)
 
         image = image.convert("1")
 
+        # Center on canvas if smaller than pixel_width (it shouldn't be larger as we scaled to pixel_width max)
         if image.width < self.pixel_width:
             canvas = Image.new("1", (self.pixel_width, image.height), 1)
             x_offset = max(0, (self.pixel_width - image.width) // 2)

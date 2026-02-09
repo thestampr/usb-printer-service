@@ -13,7 +13,7 @@ import ctypes.wintypes
 import platform
 import threading
 import time
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Union
 from enum import Enum
 
 try:
@@ -68,8 +68,8 @@ FLASHW_ALL = 3
 FLASHW_TIMER = 4
 FLASHW_TIMERNOFG = 12
 
-accent_color_titlebars: List[int] = []
-accent_color_borders: List[int] = []
+accent_color_titlebars: list[int] = []
+accent_color_borders: list[int] = []
 
 WINDOWS_VERSION = float(platform.version().split(".")[0])
 
@@ -109,9 +109,9 @@ class NCCALCSIZE_PARAMS(ctypes.Structure):
 class TitleBar:
     """Hide or restore a window's system title bar and borders."""
 
-    _height_reduction: Dict[int, int] = {}
-    _old_wndproc: Dict[int, int] = {}
-    _custom_wndproc: Dict[int, ctypes.WINFUNCTYPE] = {}
+    _height_reduction: dict[int, int] = {}
+    _old_wndproc: dict[int, int] = {}
+    _custom_wndproc: dict[int, ctypes.WINFUNCTYPE] = {}
     _WNDPROC = ctypes.WINFUNCTYPE(
         _LRESULT,
         ctypes.c_void_p,
@@ -417,7 +417,7 @@ class TitleBarColor:
     """Control title bar colors without any showcase effects."""
 
     @staticmethod
-    def set(window: Any, color: Union[Tuple[int, int, int], str]) -> None:
+    def set(window: Any, color: Union[tuple[int, int, int], str]) -> None:
         hwnd = module_find(window)
         converted = convert_color(color)
         style = get_window_long(hwnd, GWL_EXSTYLE)
@@ -464,7 +464,7 @@ class TitleBarTextColor:
     """Control the foreground (text/icon) color in the title bar."""
 
     @staticmethod
-    def set(window: Any, color: Union[Tuple[int, int, int], str]) -> None:
+    def set(window: Any, color: Union[tuple[int, int, int], str]) -> None:
         hwnd = module_find(window)
         converted = convert_color(color)
         style = get_window_long(hwnd, GWL_EXSTYLE)
@@ -489,7 +489,7 @@ class BorderColor:
     """Control the border accent color without rainbow effects."""
 
     @staticmethod
-    def set(window: Any, color: Union[Tuple[int, int, int], str]) -> None:
+    def set(window: Any, color: Union[tuple[int, int, int], str]) -> None:
         hwnd = module_find(window)
         converted = convert_color(color)
         style = get_window_long(hwnd, GWL_EXSTYLE)
@@ -652,7 +652,7 @@ class WindowDWM:
 class TitleText:
     """Minimal helpers for setting and restoring window titles."""
 
-    _original_titles: Dict[int, str] = {}
+    _original_titles: dict[int, str] = {}
 
     @staticmethod
     def set(window: Any, title: str) -> None:
@@ -669,7 +669,7 @@ class TitleText:
             ctypes.windll.user32.SetWindowTextW(hwnd, original)
 
 
-def convert_color(color: Union[Tuple[int, int, int], str]) -> int:
+def convert_color(color: Union[tuple[int, int, int], str]) -> int:
     if isinstance(color, tuple) and len(color) == 3:
         r, g, b = color
     elif isinstance(color, str) and color.startswith("#") and len(color) == 7:

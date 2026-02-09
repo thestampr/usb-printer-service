@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any, Dict
+from typing import Any
 
 from config.settings import (
     PRINTER as DEFAULT_PRINTER,
@@ -11,10 +11,11 @@ from config.settings import (
 from printer import utils
 
 
-def validate_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+def validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise ValueError("Payload must be a JSON object")
 
+    # Validate items
     if "items" not in payload or not isinstance(payload["items"], list) or not payload["items"]:
         raise ValueError("Field 'items' is required and must be a non-empty list")
 
@@ -33,46 +34,60 @@ def validate_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
             "quantity": float(quantity),
         })
 
-    data: Dict[str, Any] = dict(payload)
+    data: dict[str, Any] = dict(payload)
     data["items"] = sanitized_items
 
-    customer = data.get("customer", {}) or {}
-    data["customer"] = {
-        "name": str(customer.get("name", "")),
-        "code": customer.get("code"),
-    }
-
-    if data.get("total") is not None:
-        data["total"] = float(data["total"])
-    else:
-        data["total"] = sum(item["amount"] * item["quantity"] for item in sanitized_items)
-
-    if data.get("points") is not None:
-        data["points"] = int(data["points"])
-
-    if data.get("promotion") is not None:
-        data["promotion"] = str(data["promotion"])
-
-    if data.get("transection") is not None:
-        data["transection"] = str(data["transection"])
-
-    extras = data.get("extras")
-    if extras is None:
-        data["extras"] = {}
-    else:
-        if not isinstance(extras, dict):
-            raise ValueError("Field 'extras' must be an object")
-        sanitized_extras: Dict[str, str] = {}
-        for key, value in extras.items():
+    # Validate header_info
+    header_info = data.get("header_info")
+    if header_info is not None:
+        if not isinstance(header_info, dict):
+            raise ValueError("Field 'header_info' must be an object")
+        sanitized_header: dict[str, str] = {}
+        for key, value in header_info.items():
             sanitized_key = str(key)
             sanitized_value = "" if value is None else str(value)
-            sanitized_extras[sanitized_key] = sanitized_value
-        data["extras"] = sanitized_extras
+            sanitized_header[sanitized_key] = sanitized_value
+        data["header_info"] = sanitized_header
+    else:
+        data["header_info"] = {}
+
+    # Validate footer_info
+    footer_info = data.get("footer_info")
+    if footer_info is not None:
+        if not isinstance(footer_info, dict):
+            raise ValueError("Field 'footer_info' must be an object")
+        sanitized_footer: dict[str, str] = {}
+        for key, value in footer_info.items():
+            sanitized_key = str(key)
+            sanitized_value = "" if value is None else str(value)
+            sanitized_footer[sanitized_key] = sanitized_value
+        data["footer_info"] = sanitized_footer
+    else:
+        data["footer_info"] = {}
+
+    # Validate transaction_info
+    transaction_info = data.get("transaction_info")
+    if transaction_info is not None:
+        if not isinstance(transaction_info, dict):
+            raise ValueError("Field 'transaction_info' must be an object")
+        sanitized_transaction: dict[str, float | None] = {}
+        for key in ["received", "change", "discount", "total"]:
+            value = transaction_info.get(key)
+            if value is not None:
+                try:
+                    sanitized_transaction[key] = float(value)
+                except (ValueError, TypeError):
+                    raise ValueError(f"Field 'transaction_info.{key}' must be a number")
+            else:
+                sanitized_transaction[key] = None
+        data["transaction_info"] = sanitized_transaction
+    else:
+        data["transaction_info"] = {}
 
     return data
 
 
-def build_receipt_text(data: Dict[str, Any], layout_overrides: Dict[str, Any] | None = None) -> str:
+def build_receipt_text(data: dict[str, Any], layout_overrides: dict[str, Any] | None = None) -> str:
     layout = deepcopy(DEFAULT_LAYOUT)
     if layout_overrides:
         layout.update({k: v for k, v in layout_overrides.items() if v is not None})

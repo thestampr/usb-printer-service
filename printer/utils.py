@@ -20,11 +20,9 @@ VOLUME_UNIT = LAYOUT.get("volume_unit", "ลิตร")
 def _ensure_width(width: int | None = None) -> int:
     return width or LINE_WIDTH
 
-
 def wrap_text(text: str, width: int | None = None) -> List[str]:
     width = _ensure_width(width)
     return textwrap.wrap(text, width=width) or [""]
-
 
 def add_line(text: str = "", right_text: str | None = None, align: str | None = None) -> str:
     left = text or ""
@@ -48,32 +46,25 @@ def add_line(text: str = "", right_text: str | None = None, align: str | None = 
 
     return f"{formatted}\n"
 
-
 def add_empty_line() -> str:
     return "\n"
-
 
 def add_divider(char: str = "-", width: int | None = None) -> str:
     width = _ensure_width(width)
     divider_char = char or "-"
     return f"{divider_char * width}\n"
 
-
 def align_left(text: str, width: int | None = None) -> str:
     return f"{ALIGN_LEFT_TOKEN}{text or ''}"
-
 
 def align_right(text: str, width: int | None = None) -> str:
     return f"{ALIGN_RIGHT_TOKEN}{text or ''}"
 
-
 def align_center(text: str, width: int | None = None) -> str:
     return f"{ALIGN_CENTER_TOKEN}{text or ''}"
 
-
 def apply_small_font(text: str) -> str:
     return f"{SMALL_TEXT_TOKEN}{text or ''}"
-
 
 def format_customer(name: str, code: str | None = None) -> str:
     blocks: List[str] = []
@@ -82,7 +73,6 @@ def format_customer(name: str, code: str | None = None) -> str:
     if code:
         blocks.append(add_line(f"รหัสลูกค้า: {code}"))
     return "".join(blocks)
-
 
 def format_item(name: str, price_per_liter: float, liters: float) -> str:
     lines: List[str] = []
@@ -94,7 +84,6 @@ def format_item(name: str, price_per_liter: float, liters: float) -> str:
     lines.append(add_line(f"= {subtotal:.2f} {CURRENCY}"))
     return "".join(lines)
 
-
 def format_total(value: float) -> str:
     label = "รวมทั้งหมด"
     amount = f"{value:.2f} {CURRENCY}"
@@ -102,7 +91,6 @@ def format_total(value: float) -> str:
     spacing = width - len(label) - len(amount)
     spacing = max(1, spacing)
     return f"{label}{' ' * spacing}{amount}\n"
-
 
 def join_blocks(blocks: Iterable[str]) -> str:
     return "".join(blocks)

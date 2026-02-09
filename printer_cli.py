@@ -1,4 +1,5 @@
-"""Command-line interface for printing fuel receipts without HTTP."""
+"""Command-line interface for printing fuel receipts."""
+
 from __future__ import annotations
 
 import argparse
@@ -6,26 +7,52 @@ import json
 import sys
 from copy import deepcopy
 from pathlib import Path
+from typing import Optional
 
 from config import settings
-from config_ui import launch_config_ui
 from printer.driver import ReceiptPrinter
-from printer.template import build_info_page, build_receipt_text, validate_payload
+from printer.renderer import generate_receipt_image
+from printer.template import validate_payload
 from server.app import create_app
+from ui.main import main as launch_ui, print_preview
+from common.interface import PayloadInfo
 
 
 def parse_arguments() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(prog="printer", description="USB receipt printer CLI")
-    parser.add_argument("--header-image", dest="header_image", help="Optional header image path")
-    parser.add_argument("--header-title", dest="header_title", help="Optional header title override")
+    parser = argparse.ArgumentParser(
+        prog="printer", 
+        description="USB receipt printer CLI"
+    )
+    parser.add_argument(
+        "--header-image", 
+        dest="header_image", 
+        help="Optional header image path"
+    )
+    parser.add_argument(
+        "--header-title", 
+        dest="header_title", 
+        help="Optional header title override"
+    )
     parser.add_argument(
         "--header-description",
         dest="header_description",
         help="Optional header description override",
     )
-    parser.add_argument("--receipt-title", dest="receipt_title", help="Optional receipt title override")
-    parser.add_argument("--footer-label", dest="footer_label", help="Optional footer label override")
-    parser.add_argument("--footer-image", dest="footer_image", help="Optional footer image path")
+    parser.add_argument(
+        "--receipt-title", 
+        dest="receipt_title", 
+        help="Optional receipt title override"
+    )
+    parser.add_argument(
+        "--footer-label", 
+        dest="footer_label", 
+        help="Optional footer label override"
+    )
+    parser.add_argument(
+        "--footer-image", 
+        dest="footer_image", 
+        help="Optional footer image path"
+    )
     parser.add_argument(
         "--payload",
         required=False,
@@ -53,7 +80,6 @@ def parse_arguments() -> argparse.Namespace:
     )
     return parser.parse_args()
 
-
 def load_payload(payload_arg: str) -> dict:
     path = Path(payload_arg)
     if path.exists():
@@ -67,8 +93,7 @@ def load_payload(payload_arg: str) -> dict:
     except json.JSONDecodeError as exc:
         raise ValueError("Payload must be valid JSON or a readable JSON file path") from exc
 
-
-def configure_printer(port_override: str | None) -> dict:
+def configure_printer(port_override: Optional[str]) -> dict:
     printer_cfg = deepcopy(settings.PRINTER)
     if port_override:
         if ":" not in port_override:
@@ -77,7 +102,6 @@ def configure_printer(port_override: str | None) -> dict:
         printer_cfg["usb_port"] = port or printer_cfg.get("usb_port")
         printer_cfg["usb_name"] = name or printer_cfg.get("usb_name")
     return printer_cfg
-
 
 def build_layout(args: argparse.Namespace) -> dict:
     layout = deepcopy(settings.LAYOUT)
@@ -94,14 +118,13 @@ def build_layout(args: argparse.Namespace) -> dict:
             layout[key] = value
     return layout
 
-
-def parse_serve_address(value: str | None) -> tuple[str, int]:
+def parse_serve_address(value: Optional[str]) -> tuple[str, int]:
     default_host = settings.SERVICE.get("host", "0.0.0.0")
     default_port = settings.SERVICE.get("port", 5000)
-    if value in (None, ""):
-        return default_host, default_port
-    if ":" not in value:
-        raise ValueError("--serve expects host:port")
+
+    if value in (None, ""): return default_host, default_port
+    if ":" not in value: raise ValueError("--serve expects host:port")
+
     host, port_str = value.split(":", 1)
     host = host or default_host
     try:
@@ -116,6 +139,10 @@ def parse_serve_address(value: str | None) -> tuple[str, int]:
 def main() -> int:
     args = parse_arguments()
 
+    if args.config:
+        launch_ui()
+        return 0
+
     if args.serve is not None:
         try:
             host, port = parse_serve_address(args.serve)
@@ -128,27 +155,12 @@ def main() -> int:
         app.run(host=host, port=port, debug=debug)
         return 0
 
-    if args.config:
-        launch_config_ui()
-        return 0
-
     if args.test:
         try:
-            printer_config = configure_printer(args.port)
-        except ValueError as exc:
-            print(f"[ERROR] {exc}", file=sys.stderr)
-            return 2
-
-        printer = ReceiptPrinter(printer_config)
-        try:
-            printer.print_text(build_info_page())
-            printer.feed(2)
-            printer.cut()
+            print_preview()
         except RuntimeError as exc:
             print(f"[ERROR] {exc}", file=sys.stderr)
             return 1
-        finally:
-            printer.disconnect()
 
         print("[OK] Test page printed successfully")
         return 0
@@ -172,19 +184,15 @@ def main() -> int:
         print(f"[ERROR] {exc}", file=sys.stderr)
         return 2
 
-    receipt_text = build_receipt_text(validated, layout)
+    info = PayloadInfo.from_dict(validated)
+    img = generate_receipt_image(
+        layout, 
+        info
+    )
+    
     printer = ReceiptPrinter(printer_config)
-
     try:
-        header_image = layout.get("header_image")
-        footer_image = layout.get("footer_image")
-
-        if header_image:
-            printer.print_image(header_image)
-        printer.print_text(receipt_text)
-        if footer_image:
-            printer.print_image(footer_image)
-        printer.feed(2)
+        printer.print_image(img)
         printer.cut()
     except RuntimeError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)

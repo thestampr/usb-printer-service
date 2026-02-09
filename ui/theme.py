@@ -1,0 +1,14 @@
+WINDOW_BG = "#f5f6fa"
+WINDOW_BORDER = "#3b426e"
+CARD_BG = "#ffffff"
+NAV_BG = "#1f2432"
+ACCENT = "#5565ff"
+ACCENT_HOVER = "#6070fe"
+NAV_TEXT = "#aeb4c8"
+NAV_ACTIVE_TEXT = "#ffffff"
+BORDER_COLOR = "#e4e7f2"
+FIELD_BG = "#fbfbfe"
+TEXT_COLOR = "#1b1d29"
+FONT = ("Segoe UI", 12)
+TITLE_FONT = ("Segoe UI", 16, "bold")
+WINDOW_SIZE = "760x540"
