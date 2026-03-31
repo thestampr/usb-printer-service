@@ -88,6 +88,7 @@ class UI:
         self._preview_scroll_inner: Optional[ttk.Frame] = None
         self._preview_scroll_window: Optional[int] = None
         self._preview_scroll_container: Optional[ttk.Frame] = None
+        self._preview_visible_at = 1280
         self._preview_content_width = 440
         self._preview_scrollbar_width = 12
         self._preview_scrollbar_gap = 10
@@ -1374,7 +1375,7 @@ class UI:
         if self.section != "LAYOUT": return
 
         width = self._root.winfo_width()
-        if width < 960:
+        if width < self._preview_visible_at:
             if self._right_panel.winfo_ismapped():
                 self._right_panel.grid_remove()
         else:
