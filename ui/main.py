@@ -185,8 +185,7 @@ class UI:
         nav_frame.grid(row=0, column=0, sticky="nsew")
         nav_frame.rowconfigure(1, weight=1)
 
-        for section in FIELD_SPECS:
-            self._build_nav_button(nav_frame, section)
+        self._build_navbar(nav_frame)
 
         card = ttk.Frame(
             container, 
@@ -776,6 +775,34 @@ class UI:
 
         container.bind("<Configure>", on_resize)
 
+    def _build_navbar(self, parent: tk.Widget) -> None:
+        for section in FIELD_SPECS:
+            self._build_nav_button(parent, section)
+
+        # Spacer
+        tk.Frame(parent, bg=NAV_BG).pack(fill="both", expand=True)
+
+        # GitHub button
+        btn = tk.Label(
+            parent,
+            text="GitHub",
+            font=("Segoe UI", 10),
+            fg=NAV_ACTIVE_TEXT,
+            bg=NAV_BG,
+            cursor="hand2",
+        )
+        btn.pack(fill="x", pady=24, side="bottom")
+        
+        def on_enter(e):
+            btn.configure(font=("Segoe UI", 10, "underline"))
+        
+        def on_leave(e):
+            btn.configure(font=("Segoe UI", 10))
+        
+        btn.bind("<Enter>", on_enter)
+        btn.bind("<Leave>", on_leave)
+        btn.bind("<Button-1>", lambda e: open_github_repo())
+
     def _build_nav_button(
         self, 
         parent: tk.Widget, 
@@ -1094,7 +1121,7 @@ class UI:
 
         config = {section: {} for section in FIELD_SPECS}
         for (section, key), (var, field_type) in self._variables.items():
-            if key == "-": continue
+            if self._check_ignore_key(key, field_type): continue
             config[section][key] = self._get_typed_value(var.get(), field_type)
         return config
 
@@ -1102,7 +1129,7 @@ class UI:
         """Update UI variables with values from the provided config dictionary."""
 
         for (section, key), (var, field_type) in self._variables.items():
-            if key == "-": continue
+            if self._check_ignore_key(key, field_type): continue
             val = config.get(section, {}).get(key, "")
             if val is None: val = ""
             
@@ -1118,7 +1145,7 @@ class UI:
 
         is_dirty = False
         for (section, key), (var, field_type) in self._variables.items():
-            if key == "-": continue
+            if self._check_ignore_key(key, field_type): continue
             
             current = self._get_typed_value(var.get(), field_type)
             original = self._get_typed_value(self._data.get(section, {}).get(key), field_type)
@@ -1131,6 +1158,10 @@ class UI:
         self._save_btn.state([state])
         if self._cancel_btn:
             self._cancel_btn.state([state])
+
+    def _check_ignore_key(self, key: str, field_type: type) -> bool:
+        if field_type is callable: return True
+        return key in ["-", " "]
 
     def _create_window_icon(self) -> tk.PhotoImage:
         img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
@@ -1450,15 +1481,26 @@ def print_preview(config: Optional[Config]=None) -> None:
     finally:
         printer.disconnect()
 
-def open_driver_downloads_page() -> None:
-    """Open the printer driver downloads webpage in the default browser."""
+def open_url(url: str) -> None:
+    """Open the specified URL in the default web browser."""
 
-    url = "https://www.xprinter.co.th/en/pages/45381-Download%20Driver"
     if sys.platform == "win32":
         os.startfile(url)
     else:
         # Not implemented yet
         ...
+
+def open_driver_downloads_page() -> None:
+    """Open the printer driver downloads webpage in the default browser."""
+
+    url = "https://www.xprinter.co.th/en/pages/45381-Download%20Driver"
+    open_url(url)
+
+def open_github_repo() -> None:
+    """Open the GitHub repository page in the default browser."""
+
+    url = "https://github.com/thestampr/usb-printer-service"
+    open_url(url)
 
 def main() -> None:
     """Launch the Tkinter configuration interface."""
