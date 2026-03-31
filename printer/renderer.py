@@ -227,7 +227,7 @@ class ReceiptRenderer:
 
         try:
             with Image.open(get_real_path(img_path)) as h_img:
-                h_img = h_img.convert("L")
+                h_img = h_img.convert("LA")
                 base_w = self.target_width - (2 * self.PADDING)
                 if base_w <= 0:
                     return
@@ -242,7 +242,7 @@ class ReceiptRenderer:
                     h_img = h_img.resize((max(1, target_w), max(1, target_h)), Image.Resampling.LANCZOS)
 
                 x = (self.target_width - h_img.width) // 2
-                self.im.paste(h_img, (x, self.y))
+                self.im.paste(h_img, (x, self.y), h_img)
                 self.y += h_img.height + 10
         except Exception as e:
             LOGGER.warning(f"Failed to load image {img_path}: {e}")
