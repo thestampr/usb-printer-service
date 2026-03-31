@@ -871,10 +871,10 @@ class UI:
         # Spacer
         tk.Frame(parent, bg=NAV_BG).pack(fill="both", expand=True)
 
-        # GitHub button
+        # Github button
         btn = tk.Label(
             parent,
-            text="GitHub",
+            text="Github",
             font=("Segoe UI", 10),
             fg=NAV_ACTIVE_TEXT,
             bg=NAV_BG,
