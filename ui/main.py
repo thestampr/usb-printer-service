@@ -83,6 +83,14 @@ class UI:
         self._section_title: Optional[ttk.Label] = None
         self._preview_frame: Optional[ttk.Frame] = None
         self._preview_label: Optional[ttk.Label] = None
+        self._preview_canvas: Optional[tk.Canvas] = None
+        self._preview_scrollbar: Optional[ttk.Scrollbar] = None
+        self._preview_scroll_inner: Optional[ttk.Frame] = None
+        self._preview_scroll_window: Optional[int] = None
+        self._preview_scroll_container: Optional[ttk.Frame] = None
+        self._preview_content_width = 440
+        self._preview_scrollbar_width = 12
+        self._preview_scrollbar_gap = 10
         self._save_btn: Optional[ttk.Button] = None
         self._cancel_btn: Optional[ttk.Button] = None
 
@@ -161,6 +169,8 @@ class UI:
 
         def on_mousewheel(event: tk.Event) -> None:
             if self._scroll_canvas:
+                if self._is_widget_in_preview(event.widget):
+                    return
                 if (event.delta > 0 and self._scroll_canvas.yview()[0] <= 0) or \
                 (event.delta < 0 and self._scroll_canvas.yview()[1] >= 1):
                     return
@@ -306,6 +316,11 @@ class UI:
             
         self._preview_label = None 
         self._preview_frame = None
+        self._preview_canvas = None
+        self._preview_scrollbar = None
+        self._preview_scroll_inner = None
+        self._preview_scroll_window = None
+        self._preview_scroll_container = None
 
         self._section_title.configure(text=section.title())
         for row, (key, label, field_type, *rest) in enumerate(FIELD_SPECS[section]):
@@ -326,14 +341,88 @@ class UI:
                 style="Config.Card.TFrame"
             )
             self._preview_frame.grid(row=1, column=0, sticky="nsew")
+            self._preview_frame.configure(
+                width=self._preview_content_width + self._preview_scrollbar_gap + self._preview_scrollbar_width
+            )
+            self._preview_frame.grid_columnconfigure(0, weight=1)
+            self._preview_frame.grid_rowconfigure(0, weight=1)
+
+            preview_scroll_container = ttk.Frame(
+                self._preview_frame,
+                style="Config.Card.TFrame"
+            )
+            self._preview_scroll_container = preview_scroll_container
+            preview_scroll_container.grid(row=0, column=0, sticky="nsew")
+            preview_scroll_container.grid_columnconfigure(0, minsize=self._preview_content_width)
+            preview_scroll_container.grid_columnconfigure(1, minsize=self._preview_scrollbar_width)
+            preview_scroll_container.grid_rowconfigure(0, weight=1)
+
+            self._preview_canvas = tk.Canvas(
+                preview_scroll_container,
+                background=CARD_BG,
+                highlightthickness=0,
+                borderwidth=0,
+                width=self._preview_content_width,
+            )
+            self._preview_canvas.grid(row=0, column=0, sticky="nsew")
+
+            self._preview_scrollbar = ttk.Scrollbar(
+                preview_scroll_container,
+                orient="vertical",
+                command=self._preview_canvas.yview,
+                style="Config.Vertical.TScrollbar",
+            )
+            self._preview_scrollbar.grid(row=0, column=1, sticky="ns", padx=(self._preview_scrollbar_gap, 0))
+            self._preview_canvas.configure(yscrollcommand=self._preview_scrollbar.set)
+
+            self._right_panel.grid_columnconfigure(
+                0,
+                minsize=self._preview_content_width + self._preview_scrollbar_gap + self._preview_scrollbar_width
+            )
+
+            self._preview_scroll_inner = ttk.Frame(
+                self._preview_canvas,
+                style="Config.Card.TFrame"
+            )
+            self._preview_scroll_window = self._preview_canvas.create_window(
+                (0, 0),
+                window=self._preview_scroll_inner,
+                anchor="nw"
+            )
+
+            def on_preview_inner_configure(_: tk.Event) -> None:
+                if self._preview_canvas:
+                    self._preview_canvas.configure(scrollregion=self._preview_canvas.bbox("all"))
+                self._update_preview_scrollbar_visibility()
+
+            def on_preview_canvas_configure(_: tk.Event) -> None:
+                self._update_preview_scrollbar_visibility()
+
+            def on_preview_mousewheel(event: tk.Event) -> None:
+                if not self._preview_canvas:
+                    return
+                delta = int(-1 * (event.delta / 120))
+                if delta == 0:
+                    return
+
+                y0, y1 = self._preview_canvas.yview()
+                if (delta < 0 and y0 <= 0) or (delta > 0 and y1 >= 1):
+                    return
+
+                self._preview_canvas.yview_scroll(delta, "units")
+
+            self._preview_scroll_inner.bind("<Configure>", on_preview_inner_configure)
+            self._preview_canvas.bind("<Configure>", on_preview_canvas_configure)
+            self._preview_canvas.bind("<MouseWheel>", on_preview_mousewheel)
             
             self._preview_label = ttk.Label(
-                self._preview_frame, 
+                self._preview_scroll_inner,
                 text="Loading Preview...", 
                 style="Config.TLabel", 
                 background=CARD_BG
             )
             self._preview_label.pack(anchor="n", pady=(0, 50))
+            self._preview_label.bind("<MouseWheel>", on_preview_mousewheel)
             
             btn = ttk.Button(
                 self._preview_frame, 
@@ -342,7 +431,7 @@ class UI:
                 command=self._print_preview, 
                 cursor="hand2"
             )
-            btn.place(relx=0.5, rely=1.0, anchor="s", relwidth=1.0)
+            btn.grid(row=1, column=0, sticky="ew", pady=(10, 0))
             
             self._root.after_idle(self._update_preview_widget)
         else:
@@ -1244,6 +1333,44 @@ class UI:
             if len(self._right_panel.winfo_children()) > 0 and not self._right_panel.winfo_ismapped():
                 self._right_panel.grid()
 
+    def _is_widget_in_preview(self, widget: Any) -> bool:
+        """Return True when widget belongs to the preview panel subtree."""
+
+        if not widget or not self._preview_frame:
+            return False
+
+        try:
+            current = widget
+            preview_path = str(self._preview_frame)
+            while current:
+                if str(current) == preview_path:
+                    return True
+                parent_path = current.winfo_parent()
+                if not parent_path:
+                    break
+                current = current._nametowidget(parent_path)
+        except Exception:
+            return False
+
+        return False
+
+    def _update_preview_scrollbar_visibility(self) -> None:
+        def update_preview_scrollbar_visibility() -> None:
+            if not self._preview_canvas or not self._preview_scrollbar:
+                return
+
+            canvas_height = self._preview_canvas.winfo_height()
+            content_bbox = self._preview_canvas.bbox("all")
+            content_height = content_bbox[3] if content_bbox else 0
+
+            if content_height <= canvas_height:
+                self._preview_scrollbar.grid_remove()
+            else:
+                self._preview_scrollbar.grid()
+
+        if self._root:
+            self._root.after_idle(update_preview_scrollbar_visibility)
+
     def _browse_file(
         self, 
         target: tk.Variable, 
@@ -1400,8 +1527,13 @@ class UI:
         
         outline_layer = Image.new("RGBA", (target_w + 1, target_h), (0, 0, 0, 0))
         outline_draw = ImageDraw.Draw(outline_layer)
+        edge_color = (200, 200, 200, 255)
+        right_edge_x = target_w - 3
+        top_edge_y = tooth_h
+        bottom_edge_y = target_h - tooth_h
         
-        outline_draw.line(points, fill=(200, 200, 200, 255), width=2)
+        outline_draw.line(points, fill=edge_color, width=2)
+        outline_draw.line([(right_edge_x, top_edge_y), (right_edge_x, bottom_edge_y)], fill=edge_color, width=2)
         
         final_im.alpha_composite(outline_layer)
         return final_im
@@ -1414,10 +1546,26 @@ class UI:
             
         photo = self._generate_preview_image()
         if photo:
+            self._preview_content_width = photo.width()
             self._preview_label.configure(image=photo, text="")
             self._preview_label.image = photo # Keep ref
+            total_preview_width = self._preview_content_width + self._preview_scrollbar_gap + self._preview_scrollbar_width
+            self._right_panel.grid_columnconfigure(0, minsize=total_preview_width)
+            if self._preview_frame:
+                self._preview_frame.configure(width=total_preview_width)
+            if self._preview_scroll_container:
+                self._preview_scroll_container.grid_columnconfigure(0, minsize=self._preview_content_width)
+            if self._preview_canvas:
+                self._preview_canvas.configure(width=self._preview_content_width)
+            if self._preview_scroll_window is not None:
+                self._preview_canvas.itemconfigure(self._preview_scroll_window, width=photo.width())
         else:
             self._preview_label.configure(image="", text="Preview Error")
+            if self._preview_scroll_window is not None and self._preview_canvas:
+                self._preview_canvas.configure(width=self._preview_content_width)
+                self._preview_canvas.itemconfigure(self._preview_scroll_window, width=self._preview_content_width)
+
+        self._update_preview_scrollbar_visibility()
 
     def run(self) -> None:
         self._root.eval('tk::PlaceWindow . center')
