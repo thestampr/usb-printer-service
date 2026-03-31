@@ -37,3 +37,6 @@ assets/images/*.png
 
 # temp files
 temp.*
+
+# Test
+test*
