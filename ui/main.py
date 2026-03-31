@@ -534,25 +534,64 @@ class UI:
             return
 
         if (section, key) in MULTILINE_FIELDS:
+            lines = str(var.get()).splitlines()
+
+            txt_container = ttk.Frame(parent, style="Config.Card.TFrame")
+            txt_container.grid(row=row, column=1, sticky="ew", pady=4, padx=(12, 0))
+            txt_container.columnconfigure(0, weight=1)
+
             txt = tk.Text(
-                parent, 
-                height=3, 
-                font=FONT, 
-                bg=FIELD_BG, 
+                txt_container,
+                height=max(3, len(lines)),
+                font=FONT,
+                bg=FIELD_BG,
                 fg=TEXT_COLOR,
-                relief="flat", 
-                highlightthickness=1, 
+                relief="flat",
+                highlightthickness=1,
                 highlightbackground=BORDER_COLOR,
-                highlightcolor=ACCENT, 
-                padx=6, 
-                pady=6
+                highlightcolor=ACCENT,
+                padx=6,
+                pady=6,
+                wrap="word",
             )
-            txt.grid(row=row, column=1, sticky="ew", pady=4, padx=(12, 0))
+            txt.grid(row=0, column=0, sticky="ew")
             txt.insert("1.0", var.get())
+
+            # Resize grip
+            _grip_drag: dict[str, Any] = {}
+            grip = tk.Canvas(
+                txt_container,
+                width=16,
+                height=10,
+                bg=CARD_BG,
+                highlightthickness=0,
+                cursor="sb_v_double_arrow",
+            )
+            grip.grid(row=1, column=0, sticky="e")
+            for gy in (3, 6):
+                grip.create_line(4, gy, 13, gy, fill=BORDER_COLOR, width=1)
+
+            def on_grip_press(e: tk.Event) -> None:
+                _grip_drag["start_y"] = e.y_root
+                _grip_drag["start_h"] = int(txt.cget("height"))
+                # Capture line height once at press time so it stays stable during drag
+                _grip_drag["line_h"] = txt.winfo_reqheight() / max(int(txt.cget("height")), 1)
+
+            def on_grip_drag(e: tk.Event) -> None:
+                line_h = _grip_drag.get("line_h", 0)
+                if line_h <= 0:
+                    return
+                dy = e.y_root - _grip_drag["start_y"]
+                new_h = max(1, round(_grip_drag["start_h"] + dy / line_h))
+                if new_h != int(txt.cget("height")):
+                    txt.configure(height=new_h)
+
+            grip.bind("<ButtonPress-1>", on_grip_press)
+            grip.bind("<B1-Motion>", on_grip_drag)
 
             def on_text_change(event):
                 var.set(txt.get("1.0", "end-1c"))
-            
+
             def update_text_from_var(*args):
                 try:
                     if not txt.winfo_exists():
@@ -770,7 +809,7 @@ class UI:
             text="Open in folder",
             style="Config.TLabel",
             foreground=ACCENT,
-            font=("Segoe UI", 8, "underline"),
+            font=("Segoe UI", 8),
             cursor="hand2"
         )
         
@@ -783,6 +822,15 @@ class UI:
                 except Exception:
                     pass
 
+        
+        def on_enter(e):
+            btn_open_folder.configure(font=("Segoe UI", 8, "underline"))
+        
+        def on_leave(e):
+            btn_open_folder.configure(font=("Segoe UI", 8))
+        
+        btn_open_folder.bind("<Enter>", on_enter)
+        btn_open_folder.bind("<Leave>", on_leave)
         btn_open_folder.bind("<Button-1>", open_folder)
             
         lbl_hint = ttk.Label(
@@ -792,7 +840,7 @@ class UI:
             foreground=NAV_TEXT,
             font=("Segoe UI", 9)
         )
-        lbl_hint.pack(anchor="w", pady=(2, 0))
+        lbl_hint.pack(anchor="w", pady=(24, 0))
 
         def update_preview(*args) -> None:
             try:
