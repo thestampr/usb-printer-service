@@ -25,6 +25,8 @@ class PayloadInfo:
     change: Optional[float] = None
     discount: Optional[float] = None
     total: Optional[float] = None
+    vat: float = 0.0
+    pre_vat: float = 0.0
 
     created_at: datetime = field(default_factory=datetime.now)
 
@@ -93,6 +95,13 @@ class PayloadInfo:
         if change is not None: footer_info["เงินทอน"] = change
         if discount is not None: footer_info["ส่วนลด"] = discount
 
+        # Calculate VAT if total is provided
+        vat = 0.0
+        pre_vat = 0.0
+        if total is not None:
+            vat = (total * 0.07) / 1.07
+            pre_vat = total - vat
+
         return cls(
             header_info=payload["header_info"],
             footer_info=footer_info,
@@ -101,6 +110,8 @@ class PayloadInfo:
             change=change,
             discount=discount,
             total=total,
+            vat=vat,
+            pre_vat=pre_vat,
         )
     
     @classmethod
