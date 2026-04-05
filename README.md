@@ -35,28 +35,28 @@ Send a JSON payload to `POST http://localhost:5000/print` matching the structure
 
 ```json
 {
-  "header_info": {
-    "Customer Name": "PTT Station",
-    "Customer Code": "CUST-001",
-    "Transaction": "TX-2025-11-001",
-    "Promotion": "PT Max Card"
-  },
-  "items": [
-    {
-      "name": "Gasohol 95",
-      "amount": 38.25,
-      "quantity": 10.0
+    "header_info": {
+        "Customer Name": "Dummy",
+        "Customer Code": "CT-9904",
+        "Transaction": "TXN-TEST-1234",
+        "Promotion": "TestOnProd",
+    },
+    "items": [
+        {
+            "name": "Gasohol 95",
+            "amount": 38.25,
+            "quantity": 10.0
+        }
+    ],
+    "footer_info": {
+        "Points": "30"
+    },
+    "transaction_info": {
+        "received": 500.00,
+        "change": 127.50,
+        "discount": 10.00,
+        "total": 382.50
     }
-  ],
-  "footer_info": {
-    "Points": "30"
-  },
-  "transaction_info": {
-    "received": 500.00,
-    "change": 127.50,
-    "discount": 10.00,
-    "total": 382.50
-  }
 }
 ```
 

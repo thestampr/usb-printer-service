@@ -122,10 +122,10 @@ printer --payload "{\"header_info\":{\"Customer Name\":\"PTT\"},\"items\":[{\"na
 ```json
 {
     "header_info": {
-        "Customer Name": "PTT Station",
-        "Customer Code": "CUST-001",
-        "Transaction": "TX-2025-11-001",
-        "Promotion": "PT Max Card"
+        "Customer Name": "Dummy",
+        "Customer Code": "CT-9904",
+        "Transaction": "TXN-TEST-1234",
+        "Promotion": "TestOnProd",
     },
     "items": [
         {
