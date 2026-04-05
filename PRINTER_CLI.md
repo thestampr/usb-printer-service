@@ -131,20 +131,21 @@ printer --payload "{\"header_info\":{\"Customer Name\":\"PTT\"},\"items\":[{\"na
         {
             "name": "Gasohol 95",
             "amount": 38.25,
-            "quantity": 10.0
+            "quantity": 33.45
         }
     ],
     "footer_info": {
-        "Points": "30"
+        "แต้มสะสม": "30"
     },
     "transaction_info": {
-        "received": 500.00,
-        "change": 127.50,
-        "discount": 10.00,
-        "total": 382.50
+        "received": 1300.00,
+        "change": 20.54,
+        "discount": 0.00,
+        "total": 1279.46
     }
 }
 ```
+Observe that `quantity` now supports high-precision decimal values and the 58mm renderer now uses a 4-column layout (Item, Price, Qty, Total) with a 3:1.5:1.5:2 ratio.
 
 Field notes:
 

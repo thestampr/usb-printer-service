@@ -5,11 +5,13 @@ Python-based receipt printing system for XP-58 / XP-58IIH ESC/POS printers with 
 ## Features
 
 - Flask API (`server/app.py`) with CORS-enabled `POST /print` endpoint
-- Standalone CLI (`printer` / `cli.py`) that prints directly via USB, no HTTP needed
-- ESC/POS USB driver with Pillow-based rendering, image centering, and cut/feed helpers
-- Font support for receipts (LINESeedSans included for Thai text, quantity in liters, price in baht)
-- Optional header/footer text and image customization
-- Windows Win32Raw printing with `pywin32`
+- Standalone CLI (`printer` / `cli.py`) for direct USB printing
+- **4-Column High Precision Layout**: Support for Item, Price, Qty, and Total on 58mm receipts.
+- **Full Thai Localization**: Localized receipt headers, totals, and point fields by default.
+- ESC/POS USB driver with Pillow-based rendering and image centering.
+- Font support for receipts (LINESeedSans included for high-quality Thai text).
+- Supports high-precision quantities (Liters/Qty) via `DECIMAL` types.
+- Windows Win32Raw printing with `pywin32`.
 
 ## Installation
 
@@ -45,20 +47,21 @@ Send a JSON payload to `POST http://localhost:5000/print` matching the structure
     {
       "name": "Gasohol 95",
       "amount": 38.25,
-      "quantity": 10.0
+      "quantity": 35.43
     }
   ],
   "footer_info": {
-    "Points": "30"
+    "แต้มสะสม": "30"
   },
   "transaction_info": {
-    "received": 500.00,
-    "change": 127.50,
-    "discount": 10.00,
-    "total": 382.50
+    "received": 1400.00,
+    "change": 44.80,
+    "discount": 0.00,
+    "total": 1355.20
   }
 }
 ```
+Observe that `quantity` now supports high-precision decimal values.
 
 **Field notes**
 

@@ -89,9 +89,9 @@ class PayloadInfo:
 
         # footer Info population
         footer_info = payload.get("footer_info", {}) or {}
-        if received is not None: footer_info["Received"] = received
-        if change is not None: footer_info["Change"] = change
-        if discount is not None: footer_info["Discount"] = discount
+        if received is not None: footer_info["รับเงิน"] = received
+        if change is not None: footer_info["เงินทอน"] = change
+        if discount is not None: footer_info["ส่วนลด"] = discount
 
         return cls(
             header_info=payload["header_info"],
@@ -114,13 +114,14 @@ class PayloadInfo:
         if "customer" in payload:
             customer: dict[str, str] = payload["customer"]
             for key, value in customer.items():
-                header_info[f"Customer {key.capitalize()}"] = value
+                label = "ชื่อลูกค้า" if key == "name" else f"ลูกค้า ({key})"
+                header_info[label] = value
 
         # Copy over transaction-related info to header
         if "transection" in payload:
-            header_info["Transaction"] = payload["transection"]
+            header_info["เลขที่รายการ"] = payload["transection"]
         if "promotion" in payload:
-            header_info["Promotion"] = payload["promotion"]
+            header_info["โปรโมชั่น"] = payload["promotion"]
         new_payload["header_info"] = header_info
 
         # Copy over items

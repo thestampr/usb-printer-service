@@ -218,6 +218,64 @@ class ReceiptRenderer:
 
         self.y += max_lines * line_height
 
+    def draw_4_columns(self, col1: str, col2: str, col3: str, col4: str, font: Optional[ImageFont.ImageFont] = None) -> None:
+        """Draw text in 4 columns with 3:1.5:1.5:2 ratio."""
+        if font is None:
+            font = self.body_font
+
+        # Calculate column widths (total 8 units)
+        available_width = self.target_width - (2 * self.PADDING)
+        col1_w = int(available_width * (3 / 8))
+        col2_w = int(available_width * (1.5 / 8))
+        col3_w = int(available_width * (1.5 / 8))
+        # col4 gets the remaining to avoid rounding gaps
+        col4_w = available_width - col1_w - col2_w - col3_w
+
+        # Wrap text for each column
+        col1_lines = self.wrap_text(str(col1), font, col1_w)
+        col2_lines = self.wrap_text(str(col2), font, col2_w)
+        col3_lines = self.wrap_text(str(col3), font, col3_w)
+        col4_lines = self.wrap_text(str(col4), font, col4_w)
+
+        max_lines = max(len(col1_lines), len(col2_lines), len(col3_lines), len(col4_lines))
+        
+        # Calculate line height
+        bbox_a = font.getbbox("A")
+        line_height = (bbox_a[3] - bbox_a[1]) + 4 if bbox_a else 19
+
+        for i in range(max_lines):
+            cur_y = self.y + (i * line_height)
+            
+            # Column 1 (Left aligned)
+            if i < len(col1_lines):
+                self.draw.text((self.PADDING, cur_y), col1_lines[i], font=font, fill=0)
+            
+            # Column 2 (Center aligned)
+            if i < len(col2_lines):
+                c2_text = col2_lines[i]
+                c2_bbox = font.getbbox(c2_text)
+                c2_text_w = c2_bbox[2] - c2_bbox[0]
+                c2_x = self.PADDING + col1_w + (col2_w - c2_text_w) // 2
+                self.draw.text((c2_x, cur_y), c2_text, font=font, fill=0)
+
+            # Column 3 (Center aligned)
+            if i < len(col3_lines):
+                c3_text = col3_lines[i]
+                c3_bbox = font.getbbox(c3_text)
+                c3_text_w = c3_bbox[2] - c3_bbox[0]
+                c3_x = self.PADDING + col1_w + col2_w + (col3_w - c3_text_w) // 2
+                self.draw.text((c3_x, cur_y), c3_text, font=font, fill=0)
+
+            # Column 4 (Right aligned)
+            if i < len(col4_lines):
+                c4_text = col4_lines[i]
+                c4_bbox = font.getbbox(c4_text)
+                c4_text_w = c4_bbox[2] - c4_bbox[0]
+                c4_x = self.target_width - self.PADDING - c4_text_w
+                self.draw.text((c4_x, cur_y), c4_text, font=font, fill=0)
+
+        self.y += max_lines * line_height
+
     def draw_dashed_line(self) -> None:
         self.draw.dashed_line([(self.PADDING, self.y), (self.target_width - self.PADDING, self.y)], fill=0, width=2)
 
@@ -265,6 +323,13 @@ class ReceiptRenderer:
 
         # Description
         self.draw_centered_text(self.config.get("header_description", ""), self.body_font)
+        
+        # Support extra description lines (header_description2, 3, 4, etc.)
+        for i in range(2, 6):
+            desc_key = f"header_description{i}"
+            if desc_val := self.config.get(desc_key):
+                self.draw_centered_text(desc_val, self.body_font)
+        
         self.y += 16 + self.line_spacing
 
         if info.header_info:
@@ -281,12 +346,16 @@ class ReceiptRenderer:
         self.draw_dashed_line()
         self.y += self.line_spacing + 4
 
-        self.draw_3_columns("Item", "Qty", "Amount")
+        self.draw_4_columns("รายการ", "ราคา", "จำนวน", "เงินรวม")
         self.y += self.line_spacing
 
         # Items
         for item in info.items:
-            self.draw_3_columns(item.name, item.quantity, item.line_total)
+            # Format numbers to look clean in columns
+            price_str = f"{item.amount:,.2f}"
+            qty_str = f"{item.quantity:,.2f}"
+            total_str = f"{item.line_total:,.2f}"
+            self.draw_4_columns(item.name, price_str, qty_str, total_str)
             self.y += 4
 
         self.y += 10 + self.line_spacing
@@ -294,7 +363,7 @@ class ReceiptRenderer:
         self.y += 4 + self.line_spacing
 
         # Total
-        self.draw_keyvalue_text("TOTAL", f"{total:,.2f}")
+        self.draw_keyvalue_text("ยอดรวมทั้งสิ้น", f"{total:,.2f}")
 
         if info.footer_info:
             self.y += self.line_spacing
