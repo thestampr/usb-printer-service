@@ -13,15 +13,28 @@ Python-based receipt printing system for XP-58 / XP-58IIH ESC/POS printers with 
 
 ## Installation
 
+### Method 1: Local Setup (Development)
+
 1. Install Python 3.10+ on Windows.
 2. Clone this repository and open a terminal in the project root.
 3. Run the helper script once:
   ```cmd
   setup.cmd
-   ```
-   This installs `virtualenv`, creates `.venv`, installs `requirements.txt`, and appends the project's `bin` folder to your user `PATH`.
+  ```
+  This installs `virtualenv`, creates `.venv`, installs `requirements.txt`, and appends the project's `bin` folder to your user `PATH`.
 
-Note: The system supports various fonts for rendering. LINESeedSans font files are included under `assets/fonts/LINESeedSans/` for Thai text support.
+### Method 2: One-Click Installer (Recommended)
+
+1. Copy [installer.bat](installer.bat) to your local machine.
+2. Run `installer.bat` as Administrator.
+3. This will automatically:
+   - Check/Install Python if missing.
+   - Configure the virtual environment.
+   - Setup system PATH and shortcuts.
+
+> **Note**: If the `printer` or `open-drawer` commands are not found after installation, try opening the Windows **Environment Variables** configuration window once and then closing it (click OK) to refresh the system PATH.
+
+> **Note**: The system supports various fonts for rendering. LINESeedSans font files are included under `assets/fonts/LINESeedSans/` for Thai text support.
 
 ## Running the Flask API
 
