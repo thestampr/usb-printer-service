@@ -362,6 +362,11 @@ class ReceiptRenderer:
         self.draw_dashed_line()
         self.y += 4 + self.line_spacing
 
+        # Summary
+        if info.pre_vat > 0 or info.vat > 0:
+            self.draw_keyvalue_text("มูลค่าสินค้า", f"{info.pre_vat:,.2f}")
+            self.draw_keyvalue_text("ภาษี 7%", f"{info.vat:,.2f}")
+
         # Total
         self.draw_keyvalue_text("ยอดรวมทั้งสิ้น", f"{total:,.2f}")
 

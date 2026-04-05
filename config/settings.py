@@ -7,11 +7,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-<<<<<<< HEAD
-type Config = dict[str, dict[str, Any]]
-=======
 Config = dict[str, dict[str, Any]]
->>>>>>> a99ac2c (feat: 4-column layout, thai localization, and detailed tax invoice summary)
 
 _CONFIG_FILE = Path(__file__).with_name("temp.settings.json")
 
