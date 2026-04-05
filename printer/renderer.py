@@ -149,14 +149,10 @@ class ReceiptRenderer:
             x = (self.target_width - length) // 2
             self.draw.text((x, self.y), line, font=font, fill=0)
             
-            bbox = font.getbbox(line)
-            if bbox:
-                h = bbox[3] - bbox[1]
-            else:
-                bbox_a = font.getbbox("A")
-                h = bbox_a[3] - bbox_a[1] if bbox_a else 15
+            bbox = font.getbbox("ผู้")
+            h = bbox[3] - bbox[1]
             
-            self.y += h + 4
+            self.y += h + 6
 
     def draw_keyvalue_text(self, key: str, value: Any) -> None:
         if not key or not value: return
