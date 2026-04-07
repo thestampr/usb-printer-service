@@ -34,6 +34,7 @@ printer --payload <JSON string|path> [options]
 | Option | Description |
 | ------ | ----------- |
 | `--payload` | **Required unless `--config`, `--test`, or `--serve` is used**. JSON string or path to a JSON file containing the receipt fields listed below. |
+| `--locale` | Locale for receipt text; choose `en` (English) or `th` (Thai). Overrides the saved layout `receipt_locale` for this print. |
 | `--header-image` | Override header image path. Defaults to `config/settings.json` value. |
 | `--header-title` | Override title text printed above the receipt header. |
 | `--header-description` | Override smaller description line under the title. |
@@ -68,6 +69,14 @@ printer --payload receipts/demo.json
 ```cmd
 printer --test
 ```
+
+### Print with specific locale
+
+```cmd
+printer --payload receipts/demo.json --locale th
+```
+
+The `--locale` flag overrides the saved `LAYOUT.receipt_locale` for the current print job. To change the default persisted locale, use the configuration UI (Layout → Preview) or update the `receipt_locale` key under the `LAYOUT` section in the settings JSON.
 
 ### Open the configuration UI
 ```cmd

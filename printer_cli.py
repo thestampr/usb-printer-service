@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Optional
 
 from config import settings
+from l10n import LocaleEN, LocaleTH
 from printer.driver import ReceiptPrinter
 from printer.renderer import generate_receipt_image
 from printer.template import validate_payload
@@ -57,6 +58,12 @@ def parse_arguments() -> argparse.Namespace:
         "--payload",
         required=False,
         help="JSON payload string or path to a JSON file matching the /print body",
+    )
+    parser.add_argument(
+        "--locale",
+        choices=["en", "th"],
+        default="en",
+        help="Locale for receipt text (default: en)"
     )
     parser.add_argument(
         "--port",
@@ -154,7 +161,8 @@ def main() -> int:
         debug = settings.SERVICE.get("debug", False)
         app.run(host=host, port=port, debug=debug)
         return 0
-
+    
+    locale = LocaleTH() if args.locale == "th" else LocaleEN()
     if args.test:
         try:
             print_preview()
@@ -187,7 +195,8 @@ def main() -> int:
     info = PayloadInfo.from_dict(validated)
     img = generate_receipt_image(
         layout, 
-        info
+        info,
+        locale=locale
     )
     
     printer = ReceiptPrinter(printer_config)

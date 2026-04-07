@@ -22,6 +22,7 @@ from ui.layout import *
 from ui.theme import *
 
 from .components.slider import Slider
+from l10n import LocaleEN, LocaleTH
 
 try:
     from .utils.winapi import (BorderColor, TitleBarColor, TitleBarTextColor,
@@ -37,6 +38,7 @@ except ImportError:
 
 if TYPE_CHECKING:
     from config.settings import Config
+    from l10n.abc import Locale
 
 WINDOW_TITLE = "Printer Configuration"
 
@@ -92,6 +94,8 @@ class UI:
         self._preview_content_width = 440
         self._preview_scrollbar_width = 12
         self._preview_scrollbar_gap = 10
+        # Receipt preview locale code: 'en' or 'th'
+        self._receipt_locale_var: tk.StringVar = tk.StringVar()
         self._save_btn: Optional[ttk.Button] = None
         self._cancel_btn: Optional[ttk.Button] = None
 
@@ -99,6 +103,12 @@ class UI:
         self._cache: dict[str, Any] = {}
 
         self._data = settings.get_all()
+        # Initialize receipt locale from saved settings (persisted in LAYOUT.receipt_locale)
+        try:
+            saved = self._data.get("LAYOUT", {}).get("receipt_locale", "en")
+        except Exception:
+            saved = "en"
+        self._receipt_locale_var.set(saved)
         self._active_section = next(iter(FIELD_SPECS))
         self._prepare_window()
         self._init_variables()
@@ -330,12 +340,57 @@ class UI:
 
         if section == "LAYOUT":
             # Create Preview header and content in Fixed Right Panel
+            header_frame = ttk.Frame(self._right_panel, style="Config.Card.TFrame")
+            header_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+            header_frame.columnconfigure(0, weight=1)
+
             ttk.Label(
-                self._right_panel, 
-                text="Preview", 
-                font=TITLE_FONT, 
+                header_frame,
+                text="Preview",
+                font=TITLE_FONT,
                 style="Config.Title.TLabel"
-            ).grid(row=0, column=0, sticky="w", pady=(0, 10))
+            ).grid(row=0, column=0, sticky="w")
+
+            # Receipt language selector (two buttons) to the right of the Preview header
+            def _apply_locale_button_styles():
+                code = self._receipt_locale_var.get()
+                en_style = "Config.Primary.TButton" if code == "en" else "Config.TButton"
+                th_style = "Config.Primary.TButton" if code == "th" else "Config.TButton"
+                try:
+                    en_btn.configure(style=en_style)
+                    th_btn.configure(style=th_style)
+                except Exception:
+                    pass
+
+            def _set_preview_locale(code: str) -> None:
+                self._receipt_locale_var.set(code)
+                # Persist immediately to settings
+                try:
+                    settings.update_section("LAYOUT", {"receipt_locale": code})
+                except Exception:
+                    pass
+                _apply_locale_button_styles()
+                self._update_preview_widget()
+
+            en_btn = ttk.Button(
+                header_frame,
+                text="English",
+                style=("Config.Primary.TButton" if self._receipt_locale_var.get() == "en" else "Config.TButton"),
+                command=lambda: _set_preview_locale("en"),
+                cursor="hand2",
+                width=10
+            )
+            en_btn.grid(row=0, column=1, sticky="e", padx=(8, 4))
+
+            th_btn = ttk.Button(
+                header_frame,
+                text="ภาษาไทย",
+                style=("Config.Primary.TButton" if self._receipt_locale_var.get() == "th" else "Config.TButton"),
+                command=lambda: _set_preview_locale("th"),
+                cursor="hand2",
+                width=10
+            )
+            th_btn.grid(row=0, column=2, sticky="e")
             
             self._preview_frame = ttk.Frame(
                 self._right_panel, 
@@ -1261,6 +1316,11 @@ class UI:
         for (section, key), (var, field_type) in self._variables.items():
             if self._check_ignore_key(key, field_type): continue
             config[section][key] = self._get_typed_value(var.get(), field_type)
+
+        # inject receipt_locale to LAYOUT section for preview rendering
+        code = self._receipt_locale_var.get() if hasattr(self, "_receipt_locale_var") else "en"
+        config["LAYOUT"]["receipt_locale"] = code
+
         return config
 
     def _set_config(self, config: Config) -> None:
@@ -1519,9 +1579,14 @@ class UI:
             cfg = self._get_current_ui_config().get("LAYOUT", {})
 
             info = PayloadInfo.from_dict(_DUMMY)
+            
+            code = self._receipt_locale_var.get() if hasattr(self, "_receipt_locale_var") else "en"
+            locale = LocaleTH() if code == "th" else LocaleEN()
+
             img = generate_receipt_image(
-                cfg, 
-                info
+                cfg,
+                info,
+                locale=locale
             )
             
             preview_img = self._apply_paper_effect(img)
@@ -1656,7 +1721,7 @@ def _ensure_single_instance() -> bool:
     return True
 
 
-def print_preview(config: Optional[Config]=None) -> None:
+def print_preview(config: Optional[Config]=None, locale: Optional[Locale]=None) -> None:
     """Print preview of receipt based on [config]"""
 
     current_config = config or settings.get_all()
@@ -1664,9 +1729,14 @@ def print_preview(config: Optional[Config]=None) -> None:
     layout_cfg = current_config.get("LAYOUT", {})
 
     info = PayloadInfo.from_dict(_DUMMY)
+    if locale is None:
+        rc = layout_cfg.get("receipt_locale", "en")
+        locale = LocaleTH() if rc == "th" else LocaleEN()
+
     img = generate_receipt_image(
-        layout_cfg, 
-        info
+        layout_cfg,
+        info,
+        locale=locale
     )
 
     printer = ReceiptPrinter(printer_cfg)

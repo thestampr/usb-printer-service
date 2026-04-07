@@ -34,7 +34,8 @@ _DEFAULTS: Config = {
         "currency": "bth",
         "volume_unit": "liters",
         "header_image_scale": 100,
-        "footer_image_scale": 60
+        "footer_image_scale": 60,
+        "receipt_locale": "en"
     },
     "SERVICE": {
         "host": "0.0.0.0",

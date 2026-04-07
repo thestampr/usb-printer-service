@@ -25,6 +25,8 @@ class PayloadInfo:
     change: Optional[float] = None
     discount: Optional[float] = None
     total: Optional[float] = None
+    vat: Optional[float] = None
+    pre_vat: Optional[float] = None
 
     created_at: datetime = field(default_factory=datetime.now)
 
@@ -93,6 +95,13 @@ class PayloadInfo:
         if change is not None: footer_info["Change"] = change
         if discount is not None: footer_info["Discount"] = discount
 
+        # Calculate VAT and pre-VAT if possible
+        vat = 0.0
+        pre_vat = 0.0
+        if total is not None and items_total > 0:
+            vat = (total * 0.07)  // 1.07  # Assuming VAT is included in total
+            pre_vat = total - vat
+
         return cls(
             header_info=payload["header_info"],
             footer_info=footer_info,
@@ -101,6 +110,8 @@ class PayloadInfo:
             change=change,
             discount=discount,
             total=total,
+            vat=vat,
+            pre_vat=pre_vat,
         )
     
     @classmethod
@@ -114,7 +125,8 @@ class PayloadInfo:
         if "customer" in payload:
             customer: dict[str, str] = payload["customer"]
             for key, value in customer.items():
-                header_info[f"Customer {key.capitalize()}"] = value
+                label = "Customer name" if key == "name" else f"Customer {key.capitalize()}"
+                header_info[label] = value
 
         # Copy over transaction-related info to header
         if "transection" in payload:

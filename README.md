@@ -10,6 +10,9 @@ Python-based receipt printing system for XP-58 / XP-58IIH ESC/POS printers with 
 - Font support for receipts (LINESeedSans included for Thai text, quantity in liters, price in baht)
 - Optional header/footer text and image customization
 - Windows Win32Raw printing with `pywin32`
+- Auto-calculation of totals, change, and discounts from itemized data
+- Configuration UI for printer settings, layout defaults, and service options
+- Locale-aware rendering with English and Thai labels for common receipt fields (e.g., Customer, Total, Points)
 
 ## Installation
 
@@ -92,6 +95,42 @@ Send a JSON payload to `POST http://localhost:5000/print` matching the structure
 - If `received` and `change` both provided, `total = received - change` (authoritative).
 - If `received` and `change` both provided but `discount` not, `discount = items_total - total`.
 
+### Pre-translated header/footer keys
+
+The renderer will automatically map a set of well-known keys in `header_info` and `footer_info` to locale-specific labels (case-insensitive). The table below shows the recognized key names and their English and Thai labels.
+
+| Key (input) | English label | Thai label |
+| --- | --- | --- |
+| `no.` / `number` | No. | เลขที่ |
+| `customer` | Customer | ลูกค้า |
+| `customer name` | Customer Name | ชื่อลูกค้า |
+| `customer code` | Customer Code | รหัสลูกค้า |
+| `transaction` | Transaction | เลขรายการ |
+| `promotion` | Promotion | โปรโมชั่น |
+| `date` | Date | วันที่ |
+| `time` | Time | เวลา |
+| `cashier` | Cashier | พนักงานขาย |
+| `address` | Address | ที่อยู่ |
+| `tax id` | Tax ID (store) | เลขผู้เสียภาษี (ร้านค้า) |
+| `tax id customer` | Tax ID (customer) | เลขผู้เสียภาษี (ลูกค้า) |
+| `branch` | Branch | สาขา |
+| `car plate` | Car Plate | ทะเบียนรถ |
+| `points` | Points | คะแนน |
+| `received` | Received | รับเงิน |
+| `change` | Change | เงินทอน |
+| `discount` | Discount | ส่วนลด |
+
+Example:
+
+```json
+{
+    "header_info": { "Transaction": "TXN-123", "Cashier": "Alice" },
+    "footer_info": { "Points": "150", "Received": 500.00 }
+}
+```
+
+The keys `Transaction`, `Cashier`, `Points`, and `Received` in the example will be translated to the selected locale's labels when the receipt is rendered.
+
 ## Using the CLI
 
 Quick example:
@@ -138,6 +177,7 @@ to adjust printer, layout, and service settings.
 - Printer queue name/port
 - Header/footer text and images (with file pickers)
 - Layout defaults (font size, currency, units)
+- Receipt locale: `receipt_locale` ("en" or "th") — controls the language used for receipt labels (e.g., Item, Qty, Total). You can change this from the Layout → Preview header in the configuration UI or via the CLI `--locale` flag; the CLI flag overrides the saved setting for that print job.
 - Service host/port/debug flags
 
 ## Development Tips
