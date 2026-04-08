@@ -1106,7 +1106,7 @@ class UI:
         self._root.title(WINDOW_TITLE)
         self._root.configure(bg=WINDOW_BG)
         self._root.geometry(WINDOW_SIZE)
-        self._root.minsize(720, 500)
+        self._root.minsize(1000, 500)
         self._root.resizable(True, True)
         self._root.columnconfigure(0, weight=1)
         self._root.rowconfigure(0, weight=1)
@@ -1682,7 +1682,7 @@ class UI:
         self._update_preview_scrollbar_visibility()
 
     def run(self) -> None:
-        self._root.eval('tk::PlaceWindow . center')
+        self._root.eval("tk::PlaceWindow . center")
         self._root.mainloop()
     
 

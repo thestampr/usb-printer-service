@@ -11,4 +11,4 @@ FIELD_BG = "#fbfbfe"
 TEXT_COLOR = "#1b1d29"
 FONT = ("Segoe UI", 12)
 TITLE_FONT = ("Segoe UI", 16, "bold")
-WINDOW_SIZE = "760x540"
+WINDOW_SIZE = "1200x700"
