@@ -368,8 +368,8 @@ class ReceiptRenderer:
 
         self.draw_4_columns(
             locale.r_item,
-            locale.r_quantity,
             locale.r_amount,
+            locale.r_quantity,
             locale.r_total
         )
         self.y += self.line_spacing
