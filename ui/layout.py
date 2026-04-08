@@ -16,40 +16,62 @@ FieldSpec = tuple[
     Optional[int] # optional extra parameter (e.g. button primary flag)
 ]
 
+# Component Helpers
+def entry(label: str, key: str) -> FieldSpec:
+    return (key, label, str)
+
+def button(label: str, command: Union[callable, str], primary: bool = False) -> FieldSpec:
+    if isinstance(command, str):
+        command_name = command
+    else:
+        command_name = command.__name__
+    return (command_name, label, callable, 1 if primary else 0)
+
+def checkbox(label: str, key: str) -> FieldSpec:
+    return (key, label, bool)
+
+def slider(label: str, key: str) -> FieldSpec:
+    return (key, label, int)
+
+def section_header(label: str) -> FieldSpec:
+    return ("-", label, None)
+
+def separator() -> FieldSpec:
+    return (" ", "", None)
+
 FIELD_SPECS: dict[str, list[FieldSpec]] = {
-    "PRINTER": [
-        ("usb_port", "USB Port", str),
-        ("usb_name", "USB Name", str),
-        ("encoding", "Encoding", str),
-        ("line_width", "Line Width", int),
-        ("pixel_width", "Pixel Width", int),
-        (" ", "", None),
-        ("open_driver_downloads_page", "Download Printer Drivers", callable, 1),
-        # ^ name of function to call on button press
-    ],
     "LAYOUT": [
-        ("header_image", "Header Image", str),
-        ("header_image_scale", "Image Scale (%)", int),
-        ("header_title", "Header Title", str),
-        ("header_description", "Header Description", str),
-        ("receipt_title", "Receipt Title", str),
-        ("footer_label", "Footer Label", str),
-        ("footer_image", "Footer Image", str),
-        ("footer_image_scale", "Image Scale (%)", int),
-        ("-", "Advanced", None),
-        ("font_family", "Font Family", str),
-        ("font_path", "Font Path", str),
-        ("font_size", "Font Size", int),
-        ("font_size_small", "Small Font Size", int),
-        ("line_spacing", "Line Spacing", int),
-        ("currency", "Currency", str),
-        ("volume_unit", "Volume Unit", str),
+        entry("Header Image", "header_image"),
+        slider("Image Scale (%)", "header_image_scale"),
+        entry("Header Title", "header_title"),
+        entry("Header Description", "header_description"),
+        entry("Receipt Title", "receipt_title"),
+        entry("Footer Label", "footer_label"),
+        entry("Footer Image", "footer_image"),
+        slider("Image Scale (%)", "footer_image_scale"),
+        section_header("Advanced"),
+        entry("Font Family", "font_family"),
+        entry("Font Path", "font_path"),
+        slider("Font Size", "font_size"),
+        slider("Small Font Size", "font_size_small"),
+        slider("Line Spacing", "line_spacing"),
+        entry("Currency", "currency"),
+        entry("Volume Unit", "volume_unit"),
+    ],
+    "PRINTER": [
+        entry("USB Port", "usb_port"),
+        entry("USB Name", "usb_name"),
+        entry("Encoding", "encoding"),
+        slider("Line Width", "line_width"),
+        slider("Pixel Width", "pixel_width"),
+        separator(),
+        button("Download Printer Drivers", "open_driver_downloads_page", primary=True),
     ],
     "SERVICE": [
-        ("host", "Host", str),
-        ("port", "Port", int),
-        (" ", "", None),
-        ("debug", "Debug Mode", bool),
+        entry("Host", "host"),
+        entry("Port", "port"),
+        separator(),
+        checkbox("Debug Mode", "debug"),
     ],
 }
 
@@ -94,3 +116,12 @@ SCALE_FIELDS = {
     ("LAYOUT", "font_size_small"),
     ("LAYOUT", "line_spacing"),
 }
+
+__all__ = [
+    "FieldSpec",
+    "FIELD_SPECS",
+    "FILE_PICKER_FIELDS",
+    "MULTILINE_FIELDS",
+    "IMAGE_FIELDS",
+    "SCALE_FIELDS",
+]
