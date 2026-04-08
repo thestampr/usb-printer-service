@@ -994,7 +994,7 @@ class UI:
         
         btn.bind("<Enter>", on_enter)
         btn.bind("<Leave>", on_leave)
-        btn.bind("<Button-1>", lambda e: open_github_repo())
+        btn.bind("<ButtonRelease-1>", lambda e: open_github_repo())
 
     def _build_nav_button(
         self, 
