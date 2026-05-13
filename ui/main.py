@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional
 
 from PIL import Image, ImageDraw, ImageTk
 
@@ -18,6 +18,7 @@ from common.interface import PayloadInfo
 from config import settings
 from printer.driver import ReceiptPrinter
 from printer.renderer import generate_receipt_image
+from printer.utils import get_real_path
 from ui.layout import *
 from ui.theme import *
 
@@ -227,7 +228,7 @@ class UI:
 
         scroll_container = ttk.Frame(
             main_content, 
-            padding=(18, 10, 0, 0), 
+            padding=(18, 0, 0, 0), 
             style="Config.Card.TFrame"
         )
         scroll_container.grid(row=0, column=0, sticky="nsew")
@@ -587,6 +588,10 @@ class UI:
             if key == "line_spacing": f_min, f_max = 0, 100
                 
             self._build_slider_input(parent, var, row, from_=f_min, to=f_max)
+            return
+
+        if (section, key) in CHOICE_FIELDS:
+            self._build_choice_input(parent, section, key, var, row)
             return
 
         if (section, key) in MULTILINE_FIELDS:
@@ -976,25 +981,10 @@ class UI:
         tk.Frame(parent, bg=NAV_BG).pack(fill="both", expand=True)
 
         # Github button
-        btn = tk.Label(
-            parent,
-            text="Github",
-            font=("Segoe UI", 10),
-            fg=NAV_ACTIVE_TEXT,
-            bg=NAV_BG,
-            cursor="hand2",
-        )
-        btn.pack(fill="x", pady=24, side="bottom")
-        
-        def on_enter(e):
-            btn.configure(font=("Segoe UI", 10, "underline"))
-        
-        def on_leave(e):
-            btn.configure(font=("Segoe UI", 10))
-        
-        btn.bind("<Enter>", on_enter)
-        btn.bind("<Leave>", on_leave)
-        btn.bind("<ButtonRelease-1>", lambda e: open_github_repo())
+        self._build_github_button(parent, style="underline")
+
+        # Docs button (positioned above Github since both use side="bottom")
+        self._build_docs_button(parent)
 
     def _build_nav_button(
         self, 
@@ -1024,6 +1014,132 @@ class UI:
         )
         btn.pack(fill="x", pady=(0, 6))
         self._nav_buttons[section] = btn
+
+    def _build_github_button(
+        self,
+        parent: tk.Widget,
+        style: str = "cta"  # "cta" | "underline"
+    ) -> None:
+
+        if style == "underline":
+            btn = tk.Label(
+                parent,
+                text="Github",
+                font=("Segoe UI", 10),
+                fg=NAV_ACTIVE_TEXT,
+                bg=NAV_BG,
+                cursor="hand2",
+            )
+
+            btn.pack(
+                fill="x",
+                pady=24,
+                side="bottom"
+            )
+
+            def on_enter(e):
+                btn.configure(
+                    font=("Segoe UI", 10, "underline")
+                )
+
+            def on_leave(e):
+                btn.configure(
+                    font=("Segoe UI", 10)
+                )
+
+            btn.bind("<Enter>", on_enter)
+            btn.bind("<Leave>", on_leave)
+            btn.bind(
+                "<ButtonRelease-1>",
+                lambda e: open_github_repo()
+            )
+
+            return
+
+        icon_size = 16
+        github_icon_path = get_real_path(
+            "assets/images/github.png"
+        )
+
+        github_pil = Image.open(
+            github_icon_path
+        ).resize(
+            (icon_size, icon_size),
+            Image.LANCZOS
+        )
+
+        github_icon = ImageTk.PhotoImage(
+            github_pil
+        )
+
+        btn = tk.Button(
+            parent,
+            text=" Github",
+            image=github_icon,
+            compound="left",
+            font=("Segoe UI", 10),
+            fg="#000000",
+            bg="#FFFFFF",
+            activebackground="#F3F3F3",
+            activeforeground="#000000",
+            relief="flat",
+            borderwidth=0,
+            cursor="hand2",
+            padx=12,
+            pady=8,
+        )
+
+        btn.image = github_icon
+
+        btn.pack(
+            fill="x",
+            pady=24,
+            side="bottom",
+            padx=12,
+        )
+
+        def on_enter(e):
+            btn.configure(bg="#F3F3F3")
+
+        def on_leave(e):
+            btn.configure(bg="#FFFFFF")
+
+        btn.bind("<Enter>", on_enter)
+        btn.bind("<Leave>", on_leave)
+
+        btn.configure(command=open_github_repo)
+
+    def _build_docs_button(
+        self,
+        parent: tk.Widget
+    ) -> None:
+        """Create a documentation button matching the style of main nav buttons."""
+
+        btn = tk.Button(
+            parent,
+            text="Docs",
+            font=("Segoe UI", 10),
+            relief="sunken",
+            bd=0,
+            width=22,
+            padx=12,
+            pady=10,
+            borderwidth=0,
+            anchor="w",
+            justify="left",
+            fg=NAV_TEXT,
+            bg=NAV_BG,
+            activebackground=ACCENT,
+            activeforeground=NAV_ACTIVE_TEXT,
+            command=open_docs,
+            cursor="hand2",
+        )
+
+        btn.pack(
+            fill="x",
+            side="bottom",
+            pady=(0, 6)
+        )
 
     def _build_slider_input(
         self, 
@@ -1101,6 +1217,65 @@ class UI:
         
         container.grid(row=row, column=1, sticky="ew", pady=4, padx=(0, 20))
 
+    def _build_choice_input(
+        self, 
+        parent: tk.Widget, 
+        section: str, 
+        key: str, 
+        variable: Any, 
+        row: int
+    ) -> None:
+        """Helper to create a button-based choice selector."""
+        
+        # Get available options based on the field
+        options = []
+        if section == "PRINTER" and key == "paper_width":
+            options = settings.get_paper_width_options()
+        
+        if not options:
+            # Fallback to text entry if no options available
+            ttk.Entry(
+                parent, 
+                textvariable=variable, 
+                style="Config.TEntry", 
+                font=FONT
+            ).grid(row=row, column=1, sticky="ew", pady=4, padx=(12, 0))
+            return
+        
+        # Create button-based choice selector
+        container = ttk.Frame(parent, style="Config.Card.TFrame")
+        container.grid(row=row, column=1, sticky="ew", pady=4, padx=(12, 0))
+        container.columnconfigure(0, weight=1)
+        container.columnconfigure(1, weight=1)
+        
+        buttons = {}
+        
+        def create_button_click_handler(option_value):
+            def on_click():
+                variable.set(option_value)
+                # Update button styles
+                for opt, btn in buttons.items():
+                    if opt == option_value:
+                        btn.configure(style="Config.Primary.TButton")
+                    else:
+                        btn.configure(style="Config.TButton")
+                # Apply paper width mapping
+                current_config = self._get_current_ui_config()
+                settings.apply_paper_width(current_config, option_value)
+                self._check_dirty()
+            return on_click
+        
+        # Create buttons for each option
+        for idx, option in enumerate(options):
+            btn = ttk.Button(
+                container,
+                text=option,
+                style="Config.Primary.TButton" if variable.get() == option else "Config.TButton",
+                command=create_button_click_handler(option),
+                cursor="hand2"
+            )
+            btn.grid(row=0, column=idx, sticky="ew", padx=4)
+            buttons[option] = btn
 
     def _prepare_window(self) -> None:
         self._root.title(WINDOW_TITLE)
@@ -1307,6 +1482,9 @@ class UI:
                 return int(value)
             except (ValueError, TypeError):
                 return 0
+        if field_type is dict:
+            # For choice fields, return the string value as-is
+            return str(value)
         return str(value)
 
     def _get_current_ui_config(self) -> Config:
@@ -1320,6 +1498,10 @@ class UI:
         # inject receipt_locale to LAYOUT section for preview rendering
         code = self._receipt_locale_var.get() if hasattr(self, "_receipt_locale_var") else "en"
         config["LAYOUT"]["receipt_locale"] = code
+        
+        # Apply paper_width mapping to set line_width and pixel_width
+        if "PRINTER" in config and "paper_width" in config["PRINTER"]:
+            settings.apply_paper_width(config, config["PRINTER"]["paper_width"])
 
         return config
 
@@ -1758,16 +1940,48 @@ def open_url(url: str) -> None:
         ...
 
 def open_driver_downloads_page() -> None:
-    """Open the printer driver downloads webpage in the default browser."""
-
-    url = "https://www.xprinter.co.th/en/pages/45381-Download%20Driver"
-    open_url(url)
+    """Open the printer driver downloads page in the default browser."""
+    
+    from pathlib import Path
+    
+    # Get the path to the printer drivers HTML file
+    drivers_html = Path(__file__).parent.parent / "assets" / "printer_drivers.html"
+    
+    if drivers_html.exists():
+        # Convert to file:// URL for cross-platform compatibility
+        file_url = drivers_html.as_uri()
+        if sys.platform == "win32":
+            os.startfile(str(drivers_html))
+        else:
+            import webbrowser
+            webbrowser.open(file_url)
+    else:
+        # Fallback to online page if file doesn't exist
+        url = "https://www.xprinter.co.th/en/pages/45381-Download%20Driver"
+        open_url(url)
 
 def open_github_repo() -> None:
     """Open the GitHub repository page in the default browser."""
 
     url = "https://github.com/thestampr/usb-printer-service"
     open_url(url)
+
+def open_docs() -> None:
+    """Open the developer documentation in the default browser."""
+    
+    from pathlib import Path
+    
+    docs_html = Path(__file__).parent.parent / "assets" / "docs.html"
+    
+    if docs_html.exists():
+        if sys.platform == "win32":
+            os.startfile(str(docs_html))
+        else:
+            import webbrowser
+            webbrowser.open(docs_html.as_uri())
+    else:
+        # Fallback if not found
+        messagebox.showerror("Error", "Documentation file not found.")
 
 def main() -> None:
     """Launch the Tkinter configuration interface."""

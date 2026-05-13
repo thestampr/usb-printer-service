@@ -65,6 +65,15 @@ def open_drawer():
     return jsonify({"status": "drawer opened"}), 200
 
 
+@printer_bp.route("/docs", methods=["GET"])
+def get_docs():
+    import os
+    from flask import send_from_directory
+    
+    docs_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
+    return send_from_directory(docs_path, "docs.html")
+
+
 def create_app() -> Flask:
     app = Flask(__name__)
     CORS(app)

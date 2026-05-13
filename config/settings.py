@@ -11,11 +11,18 @@ type Config = dict[str, dict[str, Any]]
 
 _CONFIG_FILE = Path(__file__).with_name("temp.settings.json")
 
+# Paper width to line/pixel width mapping
+_PAPER_WIDTH_MAP = {
+    "58 mm": {"line_width": 44, "pixel_width": 384},
+    "80 mm": {"line_width": 72, "pixel_width": 564}
+}
+
 _DEFAULTS: Config = {
     "PRINTER": {
         "usb_port": "USB001",
         "usb_name": "XP-58",
         "encoding": "utf-8",
+        "paper_width": "58 mm",
         "line_width": 44,
         "pixel_width": 384
     },
@@ -106,6 +113,18 @@ def update_section(section: str, values: dict[str, Any]) -> None:
 
 reload()
 
+def get_paper_width_options() -> list[str]:
+    """Return available paper width options."""
+    return list(_PAPER_WIDTH_MAP.keys())
+
+def apply_paper_width(config: Config, paper_width: str) -> None:
+    """Update line_width and pixel_width in config based on paper_width selection."""
+    if paper_width in _PAPER_WIDTH_MAP:
+        mapping = _PAPER_WIDTH_MAP[paper_width]
+        if "PRINTER" in config:
+            config["PRINTER"]["line_width"] = mapping["line_width"]
+            config["PRINTER"]["pixel_width"] = mapping["pixel_width"]
+
 __all__ = [
     "PRINTER",
     "LAYOUT",
@@ -115,4 +134,6 @@ __all__ = [
     "get_defaults",
     "save_all",
     "update_section",
+    "get_paper_width_options",
+    "apply_paper_width",
 ]

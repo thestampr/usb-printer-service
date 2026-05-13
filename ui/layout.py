@@ -6,6 +6,7 @@ FieldType = Union[
     Type[str], # Entry
     Type[int], # Slider
     Type[bool], # Toggle Switch / Checkbox
+    Type[dict], # Choice/Dropdown
     Type[callable], # Button fields, pass function name to key
     None # non-editable
 ]
@@ -39,6 +40,9 @@ def section_header(label: str) -> FieldSpec:
 def separator() -> FieldSpec:
     return (" ", "", None)
 
+def choice(label: str, key: str) -> FieldSpec:
+    return (key, label, dict)
+
 FIELD_SPECS: dict[str, list[FieldSpec]] = {
     "LAYOUT": [
         entry("Header Image", "header_image"),
@@ -62,8 +66,7 @@ FIELD_SPECS: dict[str, list[FieldSpec]] = {
         entry("USB Port", "usb_port"),
         entry("USB Name", "usb_name"),
         entry("Encoding", "encoding"),
-        slider("Line Width", "line_width"),
-        slider("Pixel Width", "pixel_width"),
+        choice("Paper Width", "paper_width"),
         separator(),
         button("Download Printer Drivers", "open_driver_downloads_page", primary=True),
     ],
@@ -117,6 +120,10 @@ SCALE_FIELDS = {
     ("LAYOUT", "line_spacing"),
 }
 
+CHOICE_FIELDS = {
+    ("PRINTER", "paper_width"),
+}
+
 __all__ = [
     "FieldSpec",
     "FIELD_SPECS",
@@ -124,4 +131,5 @@ __all__ = [
     "MULTILINE_FIELDS",
     "IMAGE_FIELDS",
     "SCALE_FIELDS",
+    "CHOICE_FIELDS",
 ]
