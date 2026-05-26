@@ -40,3 +40,6 @@ temp.*
 
 # Test
 test*
+
+# Claude Code
+CLAUDE.md
