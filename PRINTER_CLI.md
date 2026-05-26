@@ -45,6 +45,8 @@ printer --payload <JSON string|path> [options]
 | `--config` | Launch the Tkinter configuration UI and exit without printing. |
 | `--test` | Print a test page with dummy data to verify printer setup and auto-calculation. |
 | `--serve` | Run the Flask API server (optionally specify host:port). |
+| `--update` | Check for a newer version on GitHub and install it if available (prompts for confirmation). |
+| `--yes` / `-y` | Skip the confirmation prompt when used with `--update`. |
 
 ### Open Cash Drawer
 

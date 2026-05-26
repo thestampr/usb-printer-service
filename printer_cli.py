@@ -9,6 +9,7 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Optional
 
+from common import updater
 from config import settings
 from l10n import LocaleEN, LocaleTH
 from printer.driver import ReceiptPrinter
@@ -85,6 +86,17 @@ def parse_arguments() -> argparse.Namespace:
         const="",
         help="Run the Flask API server (optionally specify host:port)",
     )
+    parser.add_argument(
+        "--update",
+        action="store_true",
+        help="Check for a newer version and install it if available",
+    )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Skip the confirmation prompt for --update",
+    )
     return parser.parse_args()
 
 def load_payload(payload_arg: str) -> dict:
@@ -143,12 +155,49 @@ def parse_serve_address(value: Optional[str]) -> tuple[str, int]:
     return host, port
 
 
+def run_update(assume_yes: bool = False) -> int:
+    """Check for a newer version and, if available, launch the updater."""
+    try:
+        result = updater.check_for_update()
+    except Exception as exc:  # network / parse / HTTP errors
+        print(f"[ERROR] Could not check for updates: {exc}", file=sys.stderr)
+        return 1
+
+    if not result["available"]:
+        print(f"[OK] You are running the latest version ({result['current']}).")
+        return 0
+
+    print(f"Update available: {result['current']} -> {result['latest']}")
+    if updater.is_dev_checkout():
+        print("[WARN] This looks like a git working copy; updating will overwrite local changes.")
+    if not assume_yes:
+        try:
+            answer = input("Download and install now? [y/N] ").strip().lower()
+        except EOFError:
+            answer = ""
+        if answer not in ("y", "yes"):
+            print("Update cancelled.")
+            return 0
+
+    try:
+        updater.launch_updater("none")
+    except Exception as exc:
+        print(f"[ERROR] Could not start the updater: {exc}", file=sys.stderr)
+        return 1
+
+    print("[OK] Updater started in a new window; it will apply the update once this process exits.")
+    return 0
+
+
 def main() -> int:
     args = parse_arguments()
 
     if args.config:
         launch_ui()
         return 0
+
+    if args.update:
+        return run_update(assume_yes=args.yes)
 
     if args.serve is not None:
         try:

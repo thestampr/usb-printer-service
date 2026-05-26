@@ -37,7 +37,13 @@ Python-based receipt printing system for XP-58 / XP-58IIH ESC/POS printers with 
 
 #### Updating
 
-Run `installer.bat` again to update. It auto-detects an existing install under `%USERPROFILE%\.lib`, downloads the latest version, copies it over, and refreshes dependencies. Your saved configuration (`config/temp.settings.json`), virtual environment (`.venv`), and custom header/footer images are preserved across updates.
+You can update in three ways, all of which preserve your saved configuration (`config/temp.settings.json`), virtual environment (`.venv`), and custom header/footer images:
+
+- **Installer**: Run `installer.bat` again. It auto-detects an existing install under `%USERPROFILE%\.lib`, downloads the latest version, copies it over, and refreshes dependencies.
+- **Config UI**: Click **Check for Updates** in the configuration window. If a newer version is published it offers to install it, then closes and reopens automatically.
+- **CLI**: Run `printer --update` (add `--yes` to skip the confirmation prompt).
+
+The current version is read from the `VERSION` file and compared against the latest on GitHub. Updates run in a detached helper that waits for the app to close before replacing files, so the running process is never corrupted mid-update.
 
 > **Note**: The `PATH` update takes effect automatically — just open a **new** terminal and run `printer --help`. Terminals that were already open won't pick up the change until reopened.
 

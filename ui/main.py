@@ -8,6 +8,7 @@ import math
 import os
 import subprocess
 import sys
+import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import TYPE_CHECKING, Any, Literal, Optional
@@ -15,6 +16,7 @@ from typing import TYPE_CHECKING, Any, Literal, Optional
 from PIL import Image, ImageDraw, ImageTk
 
 from common.interface import PayloadInfo
+from common import updater
 from config import settings
 from printer.driver import ReceiptPrinter
 from printer.renderer import generate_receipt_image
@@ -986,6 +988,9 @@ class UI:
         # Docs button (positioned above Github since both use side="bottom")
         self._build_docs_button(parent)
 
+        # Check for Updates button (above Docs)
+        self._build_update_button(parent)
+
     def _build_nav_button(
         self, 
         parent: tk.Widget, 
@@ -1140,6 +1145,102 @@ class UI:
             side="bottom",
             pady=(0, 6)
         )
+
+    def _build_update_button(
+        self,
+        parent: tk.Widget
+    ) -> None:
+        """Create a 'Check for Updates' nav button matching the main nav style."""
+
+        btn = tk.Button(
+            parent,
+            text="Check for Updates",
+            font=("Segoe UI", 10),
+            relief="sunken",
+            bd=0,
+            width=22,
+            padx=12,
+            pady=10,
+            borderwidth=0,
+            anchor="w",
+            justify="left",
+            fg=NAV_TEXT,
+            bg=NAV_BG,
+            activebackground=ACCENT,
+            activeforeground=NAV_ACTIVE_TEXT,
+            command=self._check_for_updates,
+            cursor="hand2",
+        )
+
+        btn.pack(
+            fill="x",
+            side="bottom",
+            pady=(0, 6)
+        )
+        self._update_button = btn
+
+    def _check_for_updates(self) -> None:
+        """Check GitHub for a newer version (off the UI thread)."""
+
+        btn = getattr(self, "_update_button", None)
+        if btn is not None:
+            btn.configure(text="Checking...", state="disabled")
+
+        def worker() -> None:
+            try:
+                result, err = updater.check_for_update(), None
+            except Exception as exc:  # network / parse / HTTP errors
+                result, err = None, exc
+            self._root.after(0, lambda: self._on_update_checked(result, err))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_update_checked(self, result: Optional[dict], err: Optional[Exception]) -> None:
+        """Handle the update-check result back on the UI thread."""
+
+        btn = getattr(self, "_update_button", None)
+        if btn is not None:
+            btn.configure(text="Check for Updates", state="normal")
+
+        if err is not None:
+            messagebox.showwarning("Update check failed", f"Could not check for updates.\n\n{err}")
+            return
+
+        if not result or not result.get("available"):
+            current = result.get("current") if result else updater.get_current_version()
+            messagebox.showinfo("Up to date", f"You are running the latest version ({current}).")
+            return
+
+        warning = ""
+        if updater.is_dev_checkout():
+            warning = (
+                "\n\nWARNING: This looks like a git working copy. Updating will "
+                "overwrite local changes with the published version."
+            )
+
+        proceed = messagebox.askyesno(
+            "Update available",
+            f"A new version is available.\n\n"
+            f"Current: {result['current']}\n"
+            f"Latest: {result['latest']}\n\n"
+            "The app will close, install the update, refresh dependencies, "
+            f"and reopen automatically. Continue?{warning}"
+        )
+        if not proceed:
+            return
+
+        try:
+            updater.launch_updater("ui")
+        except Exception as exc:
+            messagebox.showerror("Update failed", f"Could not start the updater.\n\n{exc}")
+            return
+
+        messagebox.showinfo(
+            "Updating",
+            "The updater is running in a new window.\n"
+            "This app will now close and reopen when the update finishes."
+        )
+        self._root.destroy()
 
     def _build_slider_input(
         self, 
