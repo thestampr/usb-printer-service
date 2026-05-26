@@ -11,7 +11,7 @@ class Item:
 
     @property
     def line_total(self) -> float:
-        return self.amount * self.quantity
+        return round(self.amount * self.quantity, 2)
 
 @dataclass
 class PayloadInfo:
@@ -52,7 +52,7 @@ class PayloadInfo:
             for i in payload["items"]
         ]
 
-        items_total = sum(item.line_total for item in items)
+        items_total = round(sum(item.line_total for item in items), 2)
 
         # transaction info
         tx = payload.get("transaction_info", {}) or {}
@@ -89,6 +89,12 @@ class PayloadInfo:
         if received is not None and change is not None and discount is None:
             discount = items_total - total
 
+        # round all derived monetary values to 2 decimals
+        total = _round2(total)
+        received = _round2(received)
+        change = _round2(change)
+        discount = _round2(discount)
+
         # footer Info population
         footer_info = payload.get("footer_info", {}) or {}
         if received is not None: footer_info["Received"] = received
@@ -99,8 +105,8 @@ class PayloadInfo:
         vat = 0.0
         pre_vat = 0.0
         if total is not None and items_total > 0:
-            vat = (total * 0.07)  // 1.07  # Assuming VAT is included in total
-            pre_vat = total - vat
+            vat = round((total * 0.07) // 1.07, 2)  # Assuming VAT is included in total
+            pre_vat = round(total - vat, 2)
 
         return cls(
             header_info=payload["header_info"],
@@ -159,6 +165,11 @@ def _to_float_or_none(value) -> Optional[float]:
     if value is None:
         return None
     return float(value)
+
+def _round2(value: Optional[float]) -> Optional[float]:
+    if value is None:
+        return None
+    return round(float(value), 2)
 
 def _is_legacy_format(payload: dict[str, Any]) -> bool:
     return any(key in payload for key in ["customer", "transection", "promotion", "points", "extras"])
