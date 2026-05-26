@@ -24,7 +24,7 @@ Python-based receipt printing system for XP-58 / XP-58IIH ESC/POS printers with 
   ```cmd
   setup.cmd
   ```
-  This installs `virtualenv`, creates `.venv`, installs `requirements.txt`, and appends the project's `bin` folder to your user `PATH`.
+  This installs `virtualenv`, creates `.venv`, installs `requirements.txt`, and appends the project's `bin` folder to your user `PATH`. The `PATH` change is applied immediately, so open a **new** terminal afterwards to use the `printer` / `open-drawer` commands.
 
 ### Method 2: One-Click Installer (Recommended)
 
@@ -35,7 +35,11 @@ Python-based receipt printing system for XP-58 / XP-58IIH ESC/POS printers with 
    - Configure the virtual environment.
    - Setup system PATH and shortcuts.
 
-> **Note**: If the `printer` or `open-drawer` commands are not found after installation, try opening the Windows **Environment Variables** configuration window once and then closing it (click OK) to refresh the system PATH.
+#### Updating
+
+Run `installer.bat` again to update. It auto-detects an existing install under `%USERPROFILE%\.lib`, downloads the latest version, copies it over, and refreshes dependencies. Your saved configuration (`config/temp.settings.json`), virtual environment (`.venv`), and custom header/footer images are preserved across updates.
+
+> **Note**: The `PATH` update takes effect automatically — just open a **new** terminal and run `printer --help`. Terminals that were already open won't pick up the change until reopened.
 
 > **Note**: The system supports various fonts for rendering. LINESeedSans font files are included under `assets/fonts/LINESeedSans/` for Thai text support.
 

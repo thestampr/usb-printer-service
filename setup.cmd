@@ -7,12 +7,23 @@ cd /d "%REPO_ROOT%" || (
     exit /b 1
 )
 
+REM Update/force mode: skip the "already installed" shortcut and refresh dependencies
+set "FORCE=0"
+if /i "%~1"=="update" set "FORCE=1"
+if /i "%~1"=="/force" set "FORCE=1"
+
+if "%FORCE%"=="1" (
+    echo [INFO] Update mode: refreshing dependencies...
+    goto :do_setup
+)
+
 call :check_existing_setup
 if not errorlevel 1 (
     echo [SUCCESS] Project is already set up!
     exit /b 0
 )
 
+:do_setup
 py --version >nul 2>&1
 if errorlevel 1 (
     echo [WARN] Python is not installed. Attempting to install Python 3.10+...
@@ -46,7 +57,8 @@ echo [INFO] Installing project dependencies...
 
 call :ensure_path "%REPO_ROOT%bin"
 
-call refreshenv >nul 2>&1
+REM PATH refresh is broadcast by add_to_path.ps1 (WM_SETTINGCHANGE).
+REM Open a NEW terminal to use the 'printer' / 'open-drawer' commands.
 echo [DONE] Setup complete.
 exit /b 0
 
@@ -57,16 +69,8 @@ if not exist "%TARGET%" (
     goto :eof
 )
 
-powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-    "$target = '%TARGET%'; " ^
-    "$key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Environment', $true); " ^
-    "$path = $key.GetValue('Path', '', [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames); " ^
-    "if ($path -split ';' -contains $target) { Write-Host '[INFO] Already in PATH: !target!' } " ^
-    "else { " ^
-    "   $newPath = $path + ';' + $target; " ^
-    "   $key.SetValue('Path', $newPath, [Microsoft.Win32.RegistryValueOptions]::DoNotExpandEnvironmentNames); " ^
-    "   Write-Host '[INFO] Added to PATH: !target!' " ^
-    "}"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%REPO_ROOT%bin\add_to_path.ps1" -Target "%TARGET%"
+if errorlevel 1 echo [WARN] Could not update PATH automatically; add "%TARGET%" to your PATH manually.
 goto :eof
 
 :check_existing_setup
