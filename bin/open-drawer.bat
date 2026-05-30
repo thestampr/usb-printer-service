@@ -1,4 +1,9 @@
 @echo off
 
 set scriptPath=%~dp0\..
-"%scriptPath%\.venv\Scripts\activate" && "%scriptPath%\.venv\Scripts\python" "%scriptPath%\drawer_cli.py" %* && "%scriptPath%\.venv\Scripts\deactivate"
+if exist "%scriptPath%\.venv\Scripts\python.exe" (
+    "%scriptPath%\.venv\Scripts\python.exe" "%scriptPath%\drawer_cli.py" %*
+) else (
+    python "%scriptPath%\drawer_cli.py" %*
+)
+

@@ -29,6 +29,12 @@ def parse_arguments() -> argparse.Namespace:
         help="Optional header image path"
     )
     parser.add_argument(
+        "--header-image-scale",
+        type=int,
+        dest="header_image_scale",
+        help="Header image scale percent (e.g., 60)",
+    )
+    parser.add_argument(
         "--header-title", 
         dest="header_title", 
         help="Optional header title override"
@@ -39,6 +45,16 @@ def parse_arguments() -> argparse.Namespace:
         help="Optional header description override",
     )
     parser.add_argument(
+        "--header-description2",
+        dest="header_description2",
+        help="Optional second header description line override",
+    )
+    parser.add_argument(
+        "--header-description3",
+        dest="header_description3",
+        help="Optional third header description line override",
+    )
+    parser.add_argument(
         "--receipt-title", 
         dest="receipt_title", 
         help="Optional receipt title override"
@@ -47,6 +63,17 @@ def parse_arguments() -> argparse.Namespace:
         "--footer-label", 
         dest="footer_label", 
         help="Optional footer label override"
+    )
+    parser.add_argument(
+        "--footer-image-scale",
+        type=int,
+        dest="footer_image_scale",
+        help="Footer image scale percent (e.g., 50)",
+    )
+    parser.add_argument(
+        "--width",
+        type=int,
+        help="Override paper pixel width (e.g., 384 for 58mm, 576 for 80mm)",
     )
     parser.add_argument(
         "--footer-image", 
@@ -93,7 +120,7 @@ def load_payload(payload_arg: str) -> dict:
     except json.JSONDecodeError as exc:
         raise ValueError("Payload must be valid JSON or a readable JSON file path") from exc
 
-def configure_printer(port_override: Optional[str]) -> dict:
+def configure_printer(port_override: Optional[str], width_override: Optional[int]) -> dict:
     printer_cfg = deepcopy(settings.PRINTER)
     if port_override:
         if ":" not in port_override:
@@ -101,20 +128,26 @@ def configure_printer(port_override: Optional[str]) -> dict:
         port, name = port_override.split(":", 1)
         printer_cfg["usb_port"] = port or printer_cfg.get("usb_port")
         printer_cfg["usb_name"] = name or printer_cfg.get("usb_name")
+    if width_override:
+        printer_cfg["pixel_width"] = width_override
     return printer_cfg
 
 def build_layout(args: argparse.Namespace) -> dict:
     layout = deepcopy(settings.LAYOUT)
     overrides = {
         "header_image": args.header_image,
+        "header_image_scale": args.header_image_scale,
         "header_title": args.header_title,
         "header_description": args.header_description,
+        "header_description2": args.header_description2,
+        "header_description3": args.header_description3,
         "receipt_title": args.receipt_title,
         "footer_label": args.footer_label,
         "footer_image": args.footer_image,
+        "footer_image_scale": args.footer_image_scale,
     }
     for key, value in overrides.items():
-        if value:
+        if value is not None and value != "":
             layout[key] = value
     return layout
 
@@ -179,7 +212,7 @@ def main() -> int:
     layout = build_layout(args)
 
     try:
-        printer_config = configure_printer(args.port)
+        printer_config = configure_printer(args.port, args.width)
     except ValueError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         return 2
@@ -187,7 +220,8 @@ def main() -> int:
     info = PayloadInfo.from_dict(validated)
     img = generate_receipt_image(
         layout, 
-        info
+        info,
+        width=printer_config.get("pixel_width", 384)
     )
     
     printer = ReceiptPrinter(printer_config)

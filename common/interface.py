@@ -74,26 +74,32 @@ class PayloadInfo:
         # if received & change known -> authoritative total
         #    total = received - change
         if received is not None and change is not None:
-            total = received - change
+            total = round(received - change, 2)
 
         # if received & total known -> compute change
         if received is not None and change is None:
-            change = received - total
+            change = round(received - total, 2)
 
         # if change & total known -> compute received
         if change is not None and received is None:
-            received = total + change
+            received = round(total + change, 2)
 
         # if received & change known but discount missing -> infer discount
         #    discount = total - items_total
         if received is not None and change is not None and discount is None:
-            discount = items_total - total
+            discount = round(items_total - total, 2)
+
+        # Ensure all numeric fields are rounded
+        if received is not None: received = round(received, 2)
+        if change is not None: change = round(change, 2)
+        if discount is not None: discount = round(discount, 2)
+        if total is not None: total = round(total, 2)
 
         # footer Info population
         footer_info = payload.get("footer_info", {}) or {}
-        if received is not None: footer_info["รับเงิน"] = received
-        if change is not None: footer_info["เงินทอน"] = change
-        if discount is not None: footer_info["ส่วนลด"] = discount
+        if received is not None: footer_info["รับเงิน"] = f"{received:,.2f}"
+        if change is not None: footer_info["เงินทอน"] = f"{change:,.2f}"
+        if discount is not None: footer_info["ส่วนลด"] = f"{discount:,.2f}"
 
         # Calculate VAT if total is provided
         vat = 0.0

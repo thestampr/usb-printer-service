@@ -96,7 +96,8 @@ class ReceiptPrinter:
         try:
             device.image(processed, impl="bitImageColumn")
         except Exception as exc:
-            LOGGER.error("Failed to print processed image %s: %s", image_path, exc)
+            src_desc = "PIL Image" if isinstance(path, Image.Image) else str(path)
+            LOGGER.error("Failed to print processed image %s: %s", src_desc, exc)
             raise RuntimeError("Failed to print header image") from exc
 
     def cut(self) -> None:

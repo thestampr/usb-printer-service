@@ -375,7 +375,16 @@ class ReceiptRenderer:
             self.draw_dashed_line()
             self.y += self.line_spacing
             for k, v in info.footer_info.items():
-                self.draw_keyvalue_text(k, str(v))
+                v_str = str(v)
+                if isinstance(v, float):
+                    v_str = f"{v:,.2f}"
+                elif isinstance(v, str):
+                    try:
+                        if v.count(".") == 1:
+                            v_str = f"{float(v):,.2f}"
+                    except ValueError:
+                        pass
+                self.draw_keyvalue_text(k, v_str)
             self.y += 6
 
         # Footer Label
