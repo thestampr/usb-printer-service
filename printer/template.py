@@ -37,6 +37,12 @@ def validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
     data: dict[str, Any] = dict(payload)
     data["items"] = sanitized_items
 
+    # Optional free-text fields
+    rfid = data.get("rfid")
+    data["rfid"] = "" if rfid is None else str(rfid)
+    info_title = data.get("info-title")
+    data["info-title"] = "" if info_title is None else str(info_title)
+
     # Validate header_info
     header_info = data.get("header_info")
     if header_info is not None:
@@ -84,7 +90,56 @@ def validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
     else:
         data["transaction_info"] = {}
 
+    # Validate images
+    images = data.get("images")
+    if images is not None:
+        if not isinstance(images, dict):
+            raise ValueError("Field 'images' must be an object")
+        sanitized_images: dict[str, dict[str, Any]] = {}
+        for slot in ("header", "footer"):
+            slot_value = images.get(slot)
+            if slot_value is None:
+                continue
+            if not isinstance(slot_value, dict):
+                raise ValueError(f"Field 'images.{slot}' must be an object")
+            entry: dict[str, Any] = {}
+            src = slot_value.get("src")
+            if src is not None:
+                entry["src"] = str(src)
+            scale = slot_value.get("scale")
+            if scale is not None:
+                try:
+                    scale_value = float(scale)
+                except (ValueError, TypeError):
+                    raise ValueError(f"Field 'images.{slot}.scale' must be a number")
+                if not 0 <= scale_value <= 100:
+                    raise ValueError(f"Field 'images.{slot}.scale' must be between 0 and 100")
+                entry["scale"] = scale_value
+            if entry:
+                sanitized_images[slot] = entry
+        data["images"] = sanitized_images
+    else:
+        data["images"] = {}
+
     return data
+
+
+def apply_payload_images(layout: dict[str, Any], images: dict[str, Any] | None) -> None:
+    """Overlay payload `images` onto a layout config dict (in place).
+
+    Maps each slot to the layout keys the renderer already reads. Caller controls
+    precedence by choosing when to call this relative to other overrides.
+    """
+    slot_keys = {
+        "header": ("header_image", "header_image_scale"),
+        "footer": ("footer_image", "footer_image_scale"),
+    }
+    for slot, (img_key, scale_key) in slot_keys.items():
+        entry = (images or {}).get(slot) or {}
+        if entry.get("src") is not None:
+            layout[img_key] = entry["src"]
+        if entry.get("scale") is not None:
+            layout[scale_key] = entry["scale"]
 
 
 def build_receipt_text(data: dict[str, Any], layout_overrides: dict[str, Any] | None = None) -> str:

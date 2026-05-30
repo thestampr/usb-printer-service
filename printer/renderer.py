@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 import logging
 import math
+from io import BytesIO
 from typing import Any, Optional, TYPE_CHECKING
 from PIL import Image, ImageDraw, ImageFont
 from printer.utils import get_real_path
@@ -150,10 +152,25 @@ class ReceiptRenderer:
             length = font.getlength(line)
             x = (self.target_width - length) // 2
             self.draw.text((x, self.y), line, font=font, fill=0)
-            
+
             bbox = font.getbbox("ผู้")
             h = bbox[3] - bbox[1]
-            
+
+            self.y += h + 6
+
+    def draw_left_text(self, text: str, font: ImageFont.ImageFont) -> None:
+        if not text:
+            return
+
+        max_w = self.target_width - (2 * self.PADDING)
+        lines = self.wrap_text(text, font, max_w)
+
+        for line in lines:
+            self.draw.text((self.PADDING, self.y), line, font=font, fill=0)
+
+            bbox = font.getbbox("ผู้")
+            h = bbox[3] - bbox[1]
+
             self.y += h + 6
 
     def draw_keyvalue_text(self, key: str, value: Any) -> None:
@@ -277,12 +294,30 @@ class ReceiptRenderer:
     def draw_dashed_line(self) -> None:
         self.draw.dashed_line([(self.PADDING, self.y), (self.target_width - self.PADDING, self.y)], fill=0, width=2)
 
+    def _open_image_source(self, src: str) -> Image.Image:
+        """Open an image from a file path, a data: URI, or a raw base64 string."""
+        # data: URI (e.g. "data:image/png;base64,....")
+        if src.startswith("data:"):
+            _, _, b64 = src.partition(",")
+            return Image.open(BytesIO(base64.b64decode(b64)))
+
+        # Filesystem path (guard against over-long base64 strings raising OSError)
+        try:
+            path = get_real_path(src)
+            if path.exists():
+                return Image.open(path)
+        except OSError:
+            pass
+
+        # Raw base64 fallback
+        return Image.open(BytesIO(base64.b64decode(src, validate=True)))
+
     def draw_image(self, img_path: Optional[str], scale: int) -> None:
         if not img_path:
             return
 
         try:
-            with Image.open(get_real_path(img_path)) as h_img:
+            with self._open_image_source(img_path) as h_img:
                 h_img = h_img.convert("LA")
                 base_w = self.target_width - (2 * self.PADDING)
                 if base_w <= 0:
@@ -316,6 +351,11 @@ class ReceiptRenderer:
         # Calculate total
         total = sum(float(item.line_total) for item in info.items)
 
+        # RFID (top-left, small font)
+        if info.rfid:
+            self.draw_left_text(info.rfid, self.body_font)
+            self.y += 6 + self.line_spacing
+
         # Header Image
         self.draw_image(self.config.get("header_image"), int(self.config.get("header_image_scale", 100)))
 
@@ -326,6 +366,11 @@ class ReceiptRenderer:
         # Description
         self.draw_centered_text(self.config.get("header_description", ""), self.body_font)
         self.y += 16 + self.line_spacing
+
+        # Info Title (after the header description, main font size)
+        if info.info_title:
+            self.draw_centered_text(info.info_title, self.title_font)
+            self.y += 10 + self.line_spacing
 
         # Pre-translate
         known_keys = {

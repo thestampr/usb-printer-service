@@ -20,6 +20,10 @@ class PayloadInfo:
     footer_info: dict[str, Any]
     items: list[Item]
 
+    # Optional free-text fields
+    rfid: str = ""
+    info_title: str = ""
+
     # Transaction-derived fields
     received: Optional[float] = None
     change: Optional[float] = None
@@ -109,9 +113,11 @@ class PayloadInfo:
             pre_vat = round(total - vat, 2)
 
         return cls(
-            header_info=payload["header_info"],
+            header_info=payload.get("header_info", {}) or {},
             footer_info=footer_info,
             items=items,
+            rfid=str(payload.get("rfid", "") or ""),
+            info_title=str(payload.get("info-title", "") or ""),
             received=received,
             change=change,
             discount=discount,
