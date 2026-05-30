@@ -20,6 +20,11 @@
             --inline-bg: rgba(129, 140, 248, 0.15);
             --scroll-thumb: #3a4866;
             --scroll-thumb-hover: #56688f;
+            --c-comment: #6b7a99;
+            --c-string: #7ee787;
+            --c-key: #79c0ff;
+            --c-keyword: #ff7b72;
+            --c-number: #f0883e;
         }
         :root[data-theme="light"] {
             --bg: #f8fafc;
@@ -33,6 +38,11 @@
             --inline-bg: rgba(79, 70, 229, 0.1);
             --scroll-thumb: #cbd5e1;
             --scroll-thumb-hover: #94a3b8;
+            --c-comment: #8b98b8;
+            --c-string: #9ae6b4;
+            --c-key: #93c5fd;
+            --c-keyword: #fca5a5;
+            --c-number: #fbbf24;
         }
         :root { --green: #22c55e; --blue: #3b82f6; --amber: #f59e0b; }
 
@@ -47,7 +57,8 @@
             overflow-x: hidden;
             transition: background-color 0.25s, color 0.25s;
         }
-        :lang(th) { font-family: 'Noto Sans Thai', 'Inter', sans-serif; }
+        /* Scope to body so descendants inherit Thai font, but code keeps its own mono rule. */
+        body:lang(th) { font-family: 'Noto Sans Thai', 'Inter', sans-serif; }
 
         /* Themed scrollbars */
         * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
@@ -113,7 +124,14 @@
 
         code { font-family: 'JetBrains Mono', monospace; background-color: var(--inline-bg); padding: 0.12rem 0.4rem; border-radius: 0.25rem; font-size: 0.85em; color: var(--accent); }
         pre { background-color: var(--code-bg); padding: 1.2rem 1.4rem; border-radius: 0.7rem; overflow-x: auto; margin-bottom: 1.4rem; border: 1px solid var(--border); }
+        pre, pre code { font-family: 'JetBrains Mono', monospace; }
         pre code { background-color: transparent; padding: 0; color: #e2e8f0; font-size: 0.85rem; }
+        .tok-comment, .tok-string, .tok-key, .tok-keyword, .tok-number { font-family: 'JetBrains Mono', monospace; }
+        .tok-comment { color: var(--c-comment); font-style: italic; }
+        .tok-string { color: var(--c-string); }
+        .tok-key { color: var(--c-key); }
+        .tok-keyword { color: var(--c-keyword); }
+        .tok-number { color: var(--c-number); }
 
         table { width: 100%; border-collapse: collapse; margin-bottom: 1.4rem; border: 1px solid var(--border); border-radius: 0.5rem; overflow: hidden; font-size: 0.9rem; }
         th, td { padding: 0.7rem 1rem; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
@@ -358,6 +376,27 @@ open-drawer</code></pre>
 
     <script>
         const root = document.documentElement;
+
+        // Lightweight, dependency-free syntax highlighting for code blocks.
+        (function highlightCode() {
+            const escapeHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const RE = /((?<!:)\/\/[^\n]*|#[^\n]*)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|`(?:[^`\\]|\\.)*`)|\b(import|from|return|const|let|var|async|await|def|class|for|in|if|else|true|false|null|None|True|False)\b|\b(\d+(?:\.\d+)?)\b/g;
+            document.querySelectorAll('pre code').forEach(el => {
+                const esc = escapeHtml(el.textContent);
+                el.innerHTML = esc.replace(RE, (m, com, str, kw, num, offset, full) => {
+                    if (com) return '<span class="tok-comment">' + com + '</span>';
+                    if (str) {
+                        let i = offset + m.length;
+                        while (i < full.length && (full[i] === ' ' || full[i] === '\t')) i++;
+                        const cls = full[i] === ':' ? 'tok-key' : 'tok-string';
+                        return '<span class="' + cls + '">' + str + '</span>';
+                    }
+                    if (kw) return '<span class="tok-keyword">' + kw + '</span>';
+                    if (num) return '<span class="tok-number">' + num + '</span>';
+                    return m;
+                });
+            });
+        })();
 
         // Capture the authored (English) HTML for every translatable node.
         const i18nEls = Array.from(document.querySelectorAll('[data-th]'));
