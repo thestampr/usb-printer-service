@@ -10,6 +10,7 @@ import subprocess
 import sys
 import threading
 import tkinter as tk
+from copy import deepcopy
 from tkinter import filedialog, messagebox, ttk
 from typing import TYPE_CHECKING, Any, Literal, Optional
 
@@ -18,9 +19,9 @@ from PIL import Image, ImageDraw, ImageTk
 from common.interface import PayloadInfo
 from common import updater
 from config import settings
+from config import dummy
 from printer.driver import ReceiptPrinter
 from printer.renderer import generate_receipt_image
-from printer.utils import get_real_path
 from ui.layout import *
 from ui.theme import *
 
@@ -45,33 +46,6 @@ if TYPE_CHECKING:
 
 WINDOW_TITLE = "Printer Configuration"
 
-_DUMMY = {
-    "header_info": {
-        "Customer Name": "Dummy",
-        "Customer Code": "CT-9904",
-        "Transaction": "TXN-TEST-1234",
-        "Promotion": "TestOnProd",
-    },
-    "items": [
-        {
-            "name": "Gasoline 95", 
-            "amount": 40.5, 
-            "quantity": 30
-        }, 
-        {
-            "name": "Water Bottle", 
-            "amount": 10.0, 
-            "quantity": 1
-        },
-    ],
-    "footer_info": {
-        "Points": "150",
-    },
-    "transaction_info": {
-        "received": 1300.0,
-    } 
-}
-
 
 class UI:
     def __init__(self) -> None:
@@ -93,6 +67,9 @@ class UI:
         self._preview_scroll_inner: Optional[ttk.Frame] = None
         self._preview_scroll_window: Optional[int] = None
         self._preview_scroll_container: Optional[ttk.Frame] = None
+        # When on the DUMMY tab, returns the current (possibly unsaved) editor
+        # payload so the preview reflects edits live; None elsewhere.
+        self._dummy_preview_payload: Optional[Any] = None
         self._preview_visible_at = 1280
         self._preview_content_width = 440
         self._preview_scrollbar_width = 12
@@ -321,7 +298,10 @@ class UI:
     def _build_section(self, section: str) -> None:
         if not self._scroll_inner or not self._section_title:
             return
-            
+
+        # Reset any live dummy-preview draft; re-set by _build_dummy_section.
+        self._dummy_preview_payload = None
+
         for child in self._scroll_inner.winfo_children():
             child.destroy()
         
@@ -341,163 +321,548 @@ class UI:
             state = rest[0] if rest else None
             self._build_field_row(self._scroll_inner, section, key, label, field_type, state, row)
 
-        if section == "LAYOUT":
-            # Create Preview header and content in Fixed Right Panel
-            header_frame = ttk.Frame(self._right_panel, style="Config.Card.TFrame")
-            header_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
-            header_frame.columnconfigure(0, weight=1)
-
-            ttk.Label(
-                header_frame,
-                text="Preview",
-                font=TITLE_FONT,
-                style="Config.Title.TLabel"
-            ).grid(row=0, column=0, sticky="w")
-
-            # Receipt language selector (two buttons) to the right of the Preview header
-            def _apply_locale_button_styles():
-                code = self._receipt_locale_var.get()
-                en_style = "Config.Primary.TButton" if code == "en" else "Config.TButton"
-                th_style = "Config.Primary.TButton" if code == "th" else "Config.TButton"
-                try:
-                    en_btn.configure(style=en_style)
-                    th_btn.configure(style=th_style)
-                except Exception:
-                    pass
-
-            def _set_preview_locale(code: str) -> None:
-                self._receipt_locale_var.set(code)
-                # Persist immediately to settings
-                try:
-                    settings.update_section("LAYOUT", {"receipt_locale": code})
-                except Exception:
-                    pass
-                _apply_locale_button_styles()
-                self._update_preview_widget()
-
-            en_btn = ttk.Button(
-                header_frame,
-                text="English",
-                style=("Config.Primary.TButton" if self._receipt_locale_var.get() == "en" else "Config.TButton"),
-                command=lambda: _set_preview_locale("en"),
-                cursor="hand2",
-                width=10
-            )
-            en_btn.grid(row=0, column=1, sticky="e", padx=(8, 4))
-
-            th_btn = ttk.Button(
-                header_frame,
-                text="ภาษาไทย",
-                style=("Config.Primary.TButton" if self._receipt_locale_var.get() == "th" else "Config.TButton"),
-                command=lambda: _set_preview_locale("th"),
-                cursor="hand2",
-                width=10
-            )
-            th_btn.grid(row=0, column=2, sticky="e")
-            
-            self._preview_frame = ttk.Frame(
-                self._right_panel, 
-                style="Config.Card.TFrame"
-            )
-            self._preview_frame.grid(row=1, column=0, sticky="nsew")
-            self._preview_frame.configure(
-                width=self._preview_content_width + self._preview_scrollbar_gap + self._preview_scrollbar_width
-            )
-            self._preview_frame.grid_columnconfigure(0, weight=1)
-            self._preview_frame.grid_rowconfigure(0, weight=1)
-
-            preview_scroll_container = ttk.Frame(
-                self._preview_frame,
-                style="Config.Card.TFrame"
-            )
-            self._preview_scroll_container = preview_scroll_container
-            preview_scroll_container.grid(row=0, column=0, sticky="nsew")
-            preview_scroll_container.grid_columnconfigure(0, minsize=self._preview_content_width)
-            preview_scroll_container.grid_columnconfigure(1, minsize=self._preview_scrollbar_width)
-            preview_scroll_container.grid_rowconfigure(0, weight=1)
-
-            self._preview_canvas = tk.Canvas(
-                preview_scroll_container,
-                background=CARD_BG,
-                highlightthickness=0,
-                borderwidth=0,
-                width=self._preview_content_width,
-            )
-            self._preview_canvas.grid(row=0, column=0, sticky="nsew")
-
-            self._preview_scrollbar = ttk.Scrollbar(
-                preview_scroll_container,
-                orient="vertical",
-                command=self._preview_canvas.yview,
-                style="Config.Vertical.TScrollbar",
-            )
-            self._preview_scrollbar.grid(row=0, column=1, sticky="ns", padx=(self._preview_scrollbar_gap, 0))
-            self._preview_canvas.configure(yscrollcommand=self._preview_scrollbar.set)
-
-            self._right_panel.grid_columnconfigure(
-                0,
-                minsize=self._preview_content_width + self._preview_scrollbar_gap + self._preview_scrollbar_width
-            )
-
-            self._preview_scroll_inner = ttk.Frame(
-                self._preview_canvas,
-                style="Config.Card.TFrame"
-            )
-            self._preview_scroll_window = self._preview_canvas.create_window(
-                (0, 0),
-                window=self._preview_scroll_inner,
-                anchor="nw"
-            )
-
-            def on_preview_inner_configure(_: tk.Event) -> None:
-                if self._preview_canvas:
-                    self._preview_canvas.configure(scrollregion=self._preview_canvas.bbox("all"))
-                self._update_preview_scrollbar_visibility()
-
-            def on_preview_canvas_configure(_: tk.Event) -> None:
-                self._update_preview_scrollbar_visibility()
-
-            def on_preview_mousewheel(event: tk.Event) -> None:
-                if not self._preview_canvas:
-                    return
-                delta = int(-1 * (event.delta / 120))
-                if delta == 0:
-                    return
-
-                y0, y1 = self._preview_canvas.yview()
-                if (delta < 0 and y0 <= 0) or (delta > 0 and y1 >= 1):
-                    return
-
-                self._preview_canvas.yview_scroll(delta, "units")
-
-            self._preview_scroll_inner.bind("<Configure>", on_preview_inner_configure)
-            self._preview_canvas.bind("<Configure>", on_preview_canvas_configure)
-            self._preview_canvas.bind("<MouseWheel>", on_preview_mousewheel)
-            
-            self._preview_label = ttk.Label(
-                self._preview_scroll_inner,
-                text="Loading Preview...", 
-                style="Config.TLabel", 
-                background=CARD_BG
-            )
-            self._preview_label.pack(anchor="n", pady=(0, 50))
-            self._preview_label.bind("<MouseWheel>", on_preview_mousewheel)
-            
-            btn = ttk.Button(
-                self._preview_frame, 
-                text="Print Test", 
-                style="Config.Primary.TButton", 
-                command=self._print_preview, 
-                cursor="hand2"
-            )
-            btn.grid(row=1, column=0, sticky="ew", pady=(10, 0))
-            
+        if section in ("LAYOUT", "DUMMY"):
+            if section == "DUMMY":
+                self._build_dummy_section(self._scroll_inner)
+            self._build_preview_panel()
             self._root.after_idle(self._update_preview_widget)
         else:
             if self._right_panel.winfo_ismapped():
                 self._right_panel.grid_remove()
-                
+
         self._root.after_idle(self._check_responsive_layout)
+
+    def _build_preview_panel(self) -> None:
+        """Build the receipt preview panel (header, locale buttons, scrollable
+        canvas, Print Test) into the fixed right panel. Shared by LAYOUT and DUMMY."""
+
+        # Create Preview header and content in Fixed Right Panel
+        header_frame = ttk.Frame(self._right_panel, style="Config.Card.TFrame")
+        header_frame.grid(row=0, column=0, sticky="ew", pady=(0, 10))
+        header_frame.columnconfigure(0, weight=1)
+
+        ttk.Label(
+            header_frame,
+            text="Preview",
+            font=TITLE_FONT,
+            style="Config.Title.TLabel"
+        ).grid(row=0, column=0, sticky="w")
+
+        # Receipt language selector (two buttons) to the right of the Preview header
+        def _apply_locale_button_styles():
+            code = self._receipt_locale_var.get()
+            en_style = "Config.Primary.TButton" if code == "en" else "Config.TButton"
+            th_style = "Config.Primary.TButton" if code == "th" else "Config.TButton"
+            try:
+                en_btn.configure(style=en_style)
+                th_btn.configure(style=th_style)
+            except Exception:
+                pass
+
+        def _set_preview_locale(code: str) -> None:
+            self._receipt_locale_var.set(code)
+            # Persist immediately to settings
+            try:
+                settings.update_section("LAYOUT", {"receipt_locale": code})
+            except Exception:
+                pass
+            _apply_locale_button_styles()
+            self._update_preview_widget()
+
+        en_btn = ttk.Button(
+            header_frame,
+            text="English",
+            style=("Config.Primary.TButton" if self._receipt_locale_var.get() == "en" else "Config.TButton"),
+            command=lambda: _set_preview_locale("en"),
+            cursor="hand2",
+            width=10
+        )
+        en_btn.grid(row=0, column=1, sticky="e", padx=(8, 4))
+
+        th_btn = ttk.Button(
+            header_frame,
+            text="ภาษาไทย",
+            style=("Config.Primary.TButton" if self._receipt_locale_var.get() == "th" else "Config.TButton"),
+            command=lambda: _set_preview_locale("th"),
+            cursor="hand2",
+            width=10
+        )
+        th_btn.grid(row=0, column=2, sticky="e")
+
+        self._preview_frame = ttk.Frame(
+            self._right_panel,
+            style="Config.Card.TFrame"
+        )
+        self._preview_frame.grid(row=1, column=0, sticky="nsew")
+        self._preview_frame.configure(
+            width=self._preview_content_width + self._preview_scrollbar_gap + self._preview_scrollbar_width
+        )
+        self._preview_frame.grid_columnconfigure(0, weight=1)
+        self._preview_frame.grid_rowconfigure(0, weight=1)
+
+        preview_scroll_container = ttk.Frame(
+            self._preview_frame,
+            style="Config.Card.TFrame"
+        )
+        self._preview_scroll_container = preview_scroll_container
+        preview_scroll_container.grid(row=0, column=0, sticky="nsew")
+        preview_scroll_container.grid_columnconfigure(0, minsize=self._preview_content_width)
+        preview_scroll_container.grid_columnconfigure(1, minsize=self._preview_scrollbar_width)
+        preview_scroll_container.grid_rowconfigure(0, weight=1)
+
+        self._preview_canvas = tk.Canvas(
+            preview_scroll_container,
+            background=CARD_BG,
+            highlightthickness=0,
+            borderwidth=0,
+            width=self._preview_content_width,
+        )
+        self._preview_canvas.grid(row=0, column=0, sticky="nsew")
+
+        self._preview_scrollbar = ttk.Scrollbar(
+            preview_scroll_container,
+            orient="vertical",
+            command=self._preview_canvas.yview,
+            style="Config.Vertical.TScrollbar",
+        )
+        self._preview_scrollbar.grid(row=0, column=1, sticky="ns", padx=(self._preview_scrollbar_gap, 0))
+        self._preview_canvas.configure(yscrollcommand=self._preview_scrollbar.set)
+
+        self._right_panel.grid_columnconfigure(
+            0,
+            minsize=self._preview_content_width + self._preview_scrollbar_gap + self._preview_scrollbar_width
+        )
+
+        self._preview_scroll_inner = ttk.Frame(
+            self._preview_canvas,
+            style="Config.Card.TFrame"
+        )
+        self._preview_scroll_window = self._preview_canvas.create_window(
+            (0, 0),
+            window=self._preview_scroll_inner,
+            anchor="nw"
+        )
+
+        def on_preview_inner_configure(_: tk.Event) -> None:
+            if self._preview_canvas:
+                self._preview_canvas.configure(scrollregion=self._preview_canvas.bbox("all"))
+            self._update_preview_scrollbar_visibility()
+
+        def on_preview_canvas_configure(_: tk.Event) -> None:
+            self._update_preview_scrollbar_visibility()
+
+        def on_preview_mousewheel(event: tk.Event) -> None:
+            if not self._preview_canvas:
+                return
+            delta = int(-1 * (event.delta / 120))
+            if delta == 0:
+                return
+
+            y0, y1 = self._preview_canvas.yview()
+            if (delta < 0 and y0 <= 0) or (delta > 0 and y1 >= 1):
+                return
+
+            self._preview_canvas.yview_scroll(delta, "units")
+
+        self._preview_scroll_inner.bind("<Configure>", on_preview_inner_configure)
+        self._preview_canvas.bind("<Configure>", on_preview_canvas_configure)
+        self._preview_canvas.bind("<MouseWheel>", on_preview_mousewheel)
+
+        self._preview_label = ttk.Label(
+            self._preview_scroll_inner,
+            text="Loading Preview...",
+            style="Config.TLabel",
+            background=CARD_BG
+        )
+        self._preview_label.pack(anchor="n", pady=(0, 50))
+        self._preview_label.bind("<MouseWheel>", on_preview_mousewheel)
+
+        btn = ttk.Button(
+            self._preview_frame,
+            text="Print Test",
+            style="Config.Primary.TButton",
+            command=self._print_preview,
+            cursor="hand2"
+        )
+        btn.grid(row=1, column=0, sticky="ew", pady=(10, 0))
+
+    # Column sizing shared by the dummy editor's header rows and value rows so
+    # the columns line up like a Postman key/value table.
+    _DUMMY_KEY_COL = 220
+    _DUMMY_NUM_COL = 120
+    _DUMMY_REMOVE_COL = 28
+
+    def _build_dummy_section(self, parent: tk.Widget) -> None:
+        """Structured (Postman-style) editor for the example payload, section by section."""
+
+        holder = ttk.Frame(parent, style="Config.Card.TFrame")
+        holder.grid(row=0, column=0, columnspan=2, sticky="ew", padx=(0, 20))
+        holder.columnconfigure(0, weight=1)
+
+        def render(data: dict[str, Any], message: str = "", ok: bool = True) -> None:
+            for child in holder.winfo_children():
+                child.destroy()
+
+            ttk.Label(
+                holder,
+                text=(
+                    "Edit the example payload used for the live preview and the "
+                    "“Print Test” button. Saved to config/temp.dummy.json."
+                ),
+                style="Config.TLabel",
+                wraplength=660,
+                justify="left",
+            ).pack(anchor="w", pady=(0, 14))
+
+            def refresh_preview(*_) -> None:
+                self._update_preview_widget()
+
+            def section_card(title: str, hint: str = "") -> ttk.Frame:
+                card = tk.Frame(
+                    holder, bg=CARD_BG, highlightthickness=1,
+                    highlightbackground=BORDER_COLOR, bd=0,
+                )
+                card.pack(fill="x", pady=(0, 14))
+                inner = ttk.Frame(card, style="Config.Card.TFrame")
+                inner.pack(fill="x", padx=14, pady=12)
+                top = ttk.Frame(inner, style="Config.Card.TFrame")
+                top.pack(fill="x", pady=(0, 2))
+                ttk.Label(
+                    top, text=title, font=("Segoe UI", 13, "bold"),
+                    style="Config.Title.TLabel",
+                ).pack(side="left")
+                if hint:
+                    ttk.Label(
+                        top, text=hint, style="Config.TLabel",
+                        foreground=NAV_TEXT, font=("Segoe UI", 9),
+                    ).pack(side="left", padx=(10, 0))
+                return inner
+
+            def remove_control(row_frame: ttk.Frame, column: int, on_click) -> None:
+                btn = tk.Label(
+                    row_frame, text="✕", bg=CARD_BG, fg=NAV_TEXT,
+                    font=("Segoe UI", 10), cursor="hand2",
+                )
+                btn.grid(row=0, column=column, padx=(8, 0))
+                btn.bind("<Enter>", lambda e: btn.configure(fg="#c62828"))
+                btn.bind("<Leave>", lambda e: btn.configure(fg=NAV_TEXT))
+                btn.bind("<Button-1>", lambda e: on_click())
+
+            # ---- Key/Value table (header_info / footer_info) ----
+            def kv_card(title: str, hint: str, initial: dict[str, Any]):
+                inner = section_card(title, hint)
+                rows: list[tuple[ttk.Frame, tk.StringVar, tk.StringVar]] = []
+
+                hdr = ttk.Frame(inner, style="Config.Card.TFrame")
+                hdr.pack(fill="x", pady=(8, 2))
+                hdr.columnconfigure(0, minsize=self._DUMMY_KEY_COL)
+                hdr.columnconfigure(1, weight=1)
+                hdr.columnconfigure(2, minsize=self._DUMMY_REMOVE_COL)
+                ttk.Label(hdr, text="KEY", style="Config.TLabel", foreground=NAV_TEXT,
+                          font=("Segoe UI", 8)).grid(row=0, column=0, sticky="w")
+                ttk.Label(hdr, text="VALUE", style="Config.TLabel", foreground=NAV_TEXT,
+                          font=("Segoe UI", 8)).grid(row=0, column=1, sticky="w")
+
+                body = ttk.Frame(inner, style="Config.Card.TFrame")
+                body.pack(fill="x")
+
+                def add_row(key: str = "", value: str = "") -> None:
+                    rf = ttk.Frame(body, style="Config.Card.TFrame")
+                    rf.pack(fill="x", pady=2)
+                    rf.columnconfigure(0, minsize=self._DUMMY_KEY_COL)
+                    rf.columnconfigure(1, weight=1)
+                    rf.columnconfigure(2, minsize=self._DUMMY_REMOVE_COL)
+                    kvar = tk.StringVar(value=key)
+                    vvar = tk.StringVar(value=value)
+                    ttk.Entry(rf, textvariable=kvar, style="Config.TEntry", font=FONT).grid(
+                        row=0, column=0, sticky="ew", padx=(0, 8))
+                    ttk.Entry(rf, textvariable=vvar, style="Config.TEntry", font=FONT).grid(
+                        row=0, column=1, sticky="ew")
+                    kvar.trace_add("write", refresh_preview)
+                    vvar.trace_add("write", refresh_preview)
+                    entry = (rf, kvar, vvar)
+                    rows.append(entry)
+
+                    def remove() -> None:
+                        if entry in rows:
+                            rows.remove(entry)
+                        rf.destroy()
+                        refresh_preview()
+
+                    remove_control(rf, 2, remove)
+
+                for k, v in initial.items():
+                    add_row(str(k), str(v))
+
+                ttk.Button(inner, text="+ Add Field", style="Config.TButton",
+                           command=lambda: add_row(), cursor="hand2").pack(anchor="w", pady=(8, 0))
+
+                def collect() -> dict[str, str]:
+                    out: dict[str, str] = {}
+                    for _, kvar, vvar in rows:
+                        key = kvar.get().strip()
+                        if key:
+                            out[key] = vvar.get()
+                    return out
+
+                return collect
+
+            # ---- Items table ----
+            def items_card(initial_items: list[dict[str, Any]]):
+                inner = section_card("Items", "name · price/unit · quantity")
+                rows: list[tuple[ttk.Frame, tk.StringVar, tk.StringVar, tk.StringVar]] = []
+
+                hdr = ttk.Frame(inner, style="Config.Card.TFrame")
+                hdr.pack(fill="x", pady=(8, 2))
+                hdr.columnconfigure(0, weight=1)
+                hdr.columnconfigure(1, minsize=self._DUMMY_NUM_COL)
+                hdr.columnconfigure(2, minsize=self._DUMMY_NUM_COL)
+                hdr.columnconfigure(3, minsize=self._DUMMY_REMOVE_COL)
+                ttk.Label(hdr, text="NAME", style="Config.TLabel", foreground=NAV_TEXT,
+                          font=("Segoe UI", 8)).grid(row=0, column=0, sticky="w")
+                ttk.Label(hdr, text="AMOUNT", style="Config.TLabel", foreground=NAV_TEXT,
+                          font=("Segoe UI", 8)).grid(row=0, column=1, sticky="w", padx=(8, 0))
+                ttk.Label(hdr, text="QTY", style="Config.TLabel", foreground=NAV_TEXT,
+                          font=("Segoe UI", 8)).grid(row=0, column=2, sticky="w", padx=(8, 0))
+
+                body = ttk.Frame(inner, style="Config.Card.TFrame")
+                body.pack(fill="x")
+
+                def add_item(name: str = "", amount: str = "", quantity: str = "") -> None:
+                    rf = ttk.Frame(body, style="Config.Card.TFrame")
+                    rf.pack(fill="x", pady=2)
+                    rf.columnconfigure(0, weight=1)
+                    rf.columnconfigure(1, minsize=self._DUMMY_NUM_COL)
+                    rf.columnconfigure(2, minsize=self._DUMMY_NUM_COL)
+                    rf.columnconfigure(3, minsize=self._DUMMY_REMOVE_COL)
+                    nvar = tk.StringVar(value=name)
+                    avar = tk.StringVar(value=amount)
+                    qvar = tk.StringVar(value=quantity)
+                    ttk.Entry(rf, textvariable=nvar, style="Config.TEntry", font=FONT).grid(
+                        row=0, column=0, sticky="ew")
+                    ttk.Entry(rf, textvariable=avar, style="Config.TEntry", font=FONT,
+                              justify="right").grid(row=0, column=1, sticky="ew", padx=(8, 0))
+                    ttk.Entry(rf, textvariable=qvar, style="Config.TEntry", font=FONT,
+                              justify="right").grid(row=0, column=2, sticky="ew", padx=(8, 0))
+                    nvar.trace_add("write", refresh_preview)
+                    avar.trace_add("write", refresh_preview)
+                    qvar.trace_add("write", refresh_preview)
+                    entry = (rf, nvar, avar, qvar)
+                    rows.append(entry)
+
+                    def remove() -> None:
+                        if entry in rows:
+                            rows.remove(entry)
+                        rf.destroy()
+                        refresh_preview()
+
+                    remove_control(rf, 3, remove)
+
+                for item in initial_items:
+                    add_item(
+                        str(item.get("name", "")),
+                        _num_str(item.get("amount")),
+                        _num_str(item.get("quantity")),
+                    )
+
+                ttk.Button(inner, text="+ Add Item", style="Config.TButton",
+                           command=lambda: add_item(), cursor="hand2").pack(anchor="w", pady=(8, 0))
+
+                def collect() -> list[dict[str, str]]:
+                    out: list[dict[str, str]] = []
+                    for _, nvar, avar, qvar in rows:
+                        name = nvar.get().strip()
+                        if not name:
+                            continue
+                        out.append({
+                            "name": name,
+                            "amount": avar.get().strip(),
+                            "quantity": qvar.get().strip(),
+                        })
+                    return out
+
+                return collect
+
+            # ---- Transaction info (fixed numeric keys) ----
+            def transaction_card(initial: dict[str, Any]):
+                inner = section_card("Transaction Info", "leave blank to auto-calculate")
+                tvars: dict[str, tk.StringVar] = {}
+                body = ttk.Frame(inner, style="Config.Card.TFrame")
+                body.pack(fill="x", pady=(8, 0))
+                for key, label in (("received", "Received"), ("change", "Change"),
+                                   ("discount", "Discount"), ("total", "Total")):
+                    rf = ttk.Frame(body, style="Config.Card.TFrame")
+                    rf.pack(fill="x", pady=2)
+                    rf.columnconfigure(0, minsize=self._DUMMY_KEY_COL)
+                    rf.columnconfigure(1, weight=1)
+                    ttk.Label(rf, text=label, style="Config.TLabel", font=FONT).grid(
+                        row=0, column=0, sticky="w")
+                    var = tk.StringVar(value=_num_str(initial.get(key)))
+                    ttk.Entry(rf, textvariable=var, style="Config.TEntry", font=FONT,
+                              justify="right").grid(row=0, column=1, sticky="ew")
+                    var.trace_add("write", refresh_preview)
+                    tvars[key] = var
+
+                def collect() -> dict[str, str]:
+                    out: dict[str, str] = {}
+                    for key, var in tvars.items():
+                        val = var.get().strip()
+                        if val:
+                            out[key] = val
+                    return out
+
+                return collect
+
+            # ---- Top-level receipt fields (rfid / info-title) ----
+            def receipt_card(rfid_value: str, info_title_value: str):
+                inner = section_card("Receipt", "RFID (top-left) · info title (after header)")
+                fields: dict[str, tk.StringVar] = {}
+                body = ttk.Frame(inner, style="Config.Card.TFrame")
+                body.pack(fill="x", pady=(8, 0))
+                for key, label, value in (("rfid", "RFID", rfid_value),
+                                          ("info-title", "Info Title", info_title_value)):
+                    rf = ttk.Frame(body, style="Config.Card.TFrame")
+                    rf.pack(fill="x", pady=2)
+                    rf.columnconfigure(0, minsize=self._DUMMY_KEY_COL)
+                    rf.columnconfigure(1, weight=1)
+                    ttk.Label(rf, text=label, style="Config.TLabel", font=FONT).grid(
+                        row=0, column=0, sticky="w")
+                    var = tk.StringVar(value=value)
+                    ttk.Entry(rf, textvariable=var, style="Config.TEntry", font=FONT).grid(
+                        row=0, column=1, sticky="ew")
+                    var.trace_add("write", refresh_preview)
+                    fields[key] = var
+
+                def collect() -> dict[str, str]:
+                    out: dict[str, str] = {}
+                    for key, var in fields.items():
+                        if var.get().strip():
+                            out[key] = var.get()
+                    return out
+
+                return collect
+
+            receipt_collect = receipt_card(
+                str(data.get("rfid", "") or ""),
+                str(data.get("info-title", "") or ""),
+            )
+            header_collect = kv_card("Header Info", "printed above the items", data.get("header_info", {}) or {})
+            items_collect = items_card(data.get("items", []) or [])
+            footer_collect = kv_card("Footer Info", "printed below the total", data.get("footer_info", {}) or {})
+            tx_collect = transaction_card(data.get("transaction_info", {}) or {})
+
+            def build_draft_payload() -> dict[str, Any]:
+                """Best-effort payload from the current editor state for live preview.
+
+                Tolerant of partial input: rows with non-numeric amount/quantity (or
+                blank name) are skipped so the preview never errors mid-edit.
+                """
+                payload: dict[str, Any] = dict(receipt_collect())
+                header = header_collect()
+                if header:
+                    payload["header_info"] = header
+                items: list[dict[str, Any]] = []
+                for raw in items_collect():
+                    try:
+                        items.append({
+                            "name": raw["name"],
+                            "amount": float(raw["amount"]),
+                            "quantity": float(raw["quantity"]),
+                        })
+                    except ValueError:
+                        continue
+                payload["items"] = items
+                footer = footer_collect()
+                if footer:
+                    payload["footer_info"] = footer
+                transaction: dict[str, float] = {}
+                for key, val in tx_collect().items():
+                    try:
+                        transaction[key] = float(val)
+                    except ValueError:
+                        continue
+                if transaction:
+                    payload["transaction_info"] = transaction
+                return payload
+
+            # Expose the live draft so the preview reflects unsaved edits.
+            self._dummy_preview_payload = build_draft_payload
+
+            status = ttk.Label(holder, text=message, style="Config.TLabel", font=("Segoe UI", 9))
+            status.pack(anchor="w", pady=(4, 4))
+            if message:
+                status.configure(foreground=("#2e7d32" if ok else "#c62828"))
+
+            def set_status(msg: str, is_ok: bool) -> None:
+                status.configure(text=msg, foreground=("#2e7d32" if is_ok else "#c62828"))
+
+            def on_save() -> None:
+                payload: dict[str, Any] = dict(receipt_collect())
+
+                header = header_collect()
+                if header:
+                    payload["header_info"] = header
+
+                items: list[dict[str, Any]] = []
+                for raw in items_collect():
+                    try:
+                        amount = float(raw["amount"])
+                        quantity = float(raw["quantity"])
+                    except ValueError:
+                        set_status(f"Item “{raw['name']}” needs a numeric amount and quantity.", False)
+                        return
+                    items.append({"name": raw["name"], "amount": amount, "quantity": quantity})
+                if not items:
+                    set_status("Add at least one item with a name, amount and quantity.", False)
+                    return
+                payload["items"] = items
+
+                footer = footer_collect()
+                if footer:
+                    payload["footer_info"] = footer
+
+                transaction: dict[str, float] = {}
+                for key, val in tx_collect().items():
+                    try:
+                        transaction[key] = float(val)
+                    except ValueError:
+                        set_status(f"Transaction “{key}” must be a number.", False)
+                        return
+                if transaction:
+                    payload["transaction_info"] = transaction
+
+                try:
+                    PayloadInfo.from_dict(deepcopy(payload))
+                except Exception as exc:
+                    set_status(f"Invalid payload: {exc}", False)
+                    return
+                try:
+                    dummy.save(payload)
+                except OSError as exc:
+                    set_status(f"Could not save: {exc}", False)
+                    return
+                set_status("Saved to config/temp.dummy.json.", True)
+                # Refresh the receipt preview with the newly saved payload.
+                self._update_preview_widget()
+
+            btns = ttk.Frame(holder, style="Config.Card.TFrame")
+            btns.pack(anchor="w", pady=(4, 0))
+            ttk.Button(btns, text="Save Dummy", style="Config.Primary.TButton",
+                       command=on_save, cursor="hand2").pack(side="left")
+            ttk.Button(btns, text="Reset to Default", style="Config.TButton",
+                       command=lambda: render(dummy.get_defaults(),
+                                              "Loaded defaults — click Save Dummy to apply.", True),
+                       cursor="hand2").pack(side="left", padx=(8, 0))
+            ttk.Button(btns, text="Reload from File", style="Config.TButton",
+                       command=lambda: render(dummy.load(), "Reloaded from file.", True),
+                       cursor="hand2").pack(side="left", padx=(8, 0))
+
+            # Reflect the (re)rendered editor state in the preview. No-op on the
+            # initial build (the preview label is created afterwards); meaningful
+            # for Reset/Reload which re-render while the preview already exists.
+            self._update_preview_widget()
+
+        render(dummy.load())
 
     def _build_field_row(
         self, 
@@ -979,17 +1344,33 @@ class UI:
         for section in FIELD_SPECS:
             self._build_nav_button(parent, section)
 
+        # Divider + "Check for Updates" directly under the section nav
+        tk.Frame(parent, bg="#333a4d", height=1).pack(fill="x", padx=16, pady=(6, 8))
+        self._build_update_button(parent)
+
         # Spacer
         tk.Frame(parent, bg=NAV_BG).pack(fill="both", expand=True)
 
-        # Github button
-        self._build_github_button(parent, style="underline")
+        # Version label (bottom-most)
+        self._build_version_label(parent)
 
-        # Docs button (positioned above Github since both use side="bottom")
-        self._build_docs_button(parent)
+        # Inline "Docs • Github" links with a divider above (separates footer from nav)
+        self._build_footer_links(parent)
 
-        # Check for Updates button (above Docs)
-        self._build_update_button(parent)
+    def _build_version_label(self, parent: tk.Widget) -> None:
+        """Tiny, grey current-version label pinned to the very bottom of the nav."""
+        try:
+            version = updater.get_current_version()
+        except Exception:
+            version = ""
+
+        tk.Label(
+            parent,
+            text=f"v{version}" if version else "",
+            font=("Segoe UI", 8),
+            fg=NAV_TEXT,
+            bg=NAV_BG,
+        ).pack(side="bottom", pady=(0, 8))
 
     def _build_nav_button(
         self, 
@@ -1020,131 +1401,35 @@ class UI:
         btn.pack(fill="x", pady=(0, 6))
         self._nav_buttons[section] = btn
 
-    def _build_github_button(
-        self,
-        parent: tk.Widget,
-        style: str = "cta"  # "cta" | "underline"
-    ) -> None:
+    def _build_footer_links(self, parent: tk.Widget) -> None:
+        """Inline 'Docs • Github' hover-underline links with a divider above."""
 
-        if style == "underline":
-            btn = tk.Label(
-                parent,
-                text="Github",
-                font=("Segoe UI", 10),
-                fg=NAV_ACTIVE_TEXT,
-                bg=NAV_BG,
-                cursor="hand2",
-            )
+        container = tk.Frame(parent, bg=NAV_BG)
+        container.pack(side="bottom", fill="x", pady=(0, 12))
 
-            btn.pack(
-                fill="x",
-                pady=24,
-                side="bottom"
-            )
+        # Divider to visually separate the footer links from the nav above.
+        tk.Frame(container, bg="#333a4d", height=1).pack(fill="x", padx=16, pady=(0, 10))
 
-            def on_enter(e):
-                btn.configure(
-                    font=("Segoe UI", 10, "underline")
-                )
+        row = tk.Frame(container, bg=NAV_BG)
+        row.pack()  # centered horizontally
 
-            def on_leave(e):
-                btn.configure(
-                    font=("Segoe UI", 10)
-                )
+        self._build_text_link(row, "Docs", open_docs)
+        tk.Label(
+            row, text="•", font=("Segoe UI", 9), fg=NAV_TEXT, bg=NAV_BG,
+        ).pack(side="left", padx=8)
+        self._build_text_link(row, "Github", open_github_repo)
 
-            btn.bind("<Enter>", on_enter)
-            btn.bind("<Leave>", on_leave)
-            btn.bind(
-                "<ButtonRelease-1>",
-                lambda e: open_github_repo()
-            )
+    def _build_text_link(self, parent: tk.Widget, text: str, command) -> None:
+        """A small grey hover-underline clickable text link for the nav footer."""
 
-            return
-
-        icon_size = 16
-        github_icon_path = get_real_path(
-            "assets/images/github.png"
+        lbl = tk.Label(
+            parent, text=text, font=("Segoe UI", 9),
+            fg=NAV_TEXT, bg=NAV_BG, cursor="hand2",
         )
-
-        github_pil = Image.open(
-            github_icon_path
-        ).resize(
-            (icon_size, icon_size),
-            Image.LANCZOS
-        )
-
-        github_icon = ImageTk.PhotoImage(
-            github_pil
-        )
-
-        btn = tk.Button(
-            parent,
-            text=" Github",
-            image=github_icon,
-            compound="left",
-            font=("Segoe UI", 10),
-            fg="#000000",
-            bg="#FFFFFF",
-            activebackground="#F3F3F3",
-            activeforeground="#000000",
-            relief="flat",
-            borderwidth=0,
-            cursor="hand2",
-            padx=12,
-            pady=8,
-        )
-
-        btn.image = github_icon
-
-        btn.pack(
-            fill="x",
-            pady=24,
-            side="bottom",
-            padx=12,
-        )
-
-        def on_enter(e):
-            btn.configure(bg="#F3F3F3")
-
-        def on_leave(e):
-            btn.configure(bg="#FFFFFF")
-
-        btn.bind("<Enter>", on_enter)
-        btn.bind("<Leave>", on_leave)
-
-        btn.configure(command=open_github_repo)
-
-    def _build_docs_button(
-        self,
-        parent: tk.Widget
-    ) -> None:
-        """Create a documentation button matching the style of main nav buttons."""
-
-        btn = tk.Button(
-            parent,
-            text="Docs",
-            font=("Segoe UI", 10),
-            relief="sunken",
-            bd=0,
-            width=22,
-            padx=12,
-            pady=10,
-            borderwidth=0,
-            anchor="w",
-            justify="left",
-            fg=NAV_TEXT,
-            bg=NAV_BG,
-            activebackground=ACCENT,
-            activeforeground=NAV_ACTIVE_TEXT,
-            command=open_docs,
-            cursor="hand2",
-        )
-
-        btn.pack(
-            fill="x",
-            side="bottom",
-            pady=(0, 6)
-        )
+        lbl.pack(side="left")
+        lbl.bind("<Enter>", lambda e: lbl.configure(font=("Segoe UI", 9, "underline"), fg=NAV_ACTIVE_TEXT))
+        lbl.bind("<Leave>", lambda e: lbl.configure(font=("Segoe UI", 9), fg=NAV_TEXT))
+        lbl.bind("<ButtonRelease-1>", lambda e: command())
 
     def _build_update_button(
         self,
@@ -1174,7 +1459,6 @@ class UI:
 
         btn.pack(
             fill="x",
-            side="bottom",
             pady=(0, 6)
         )
         self._update_button = btn
@@ -1715,7 +1999,7 @@ class UI:
     def _update_preview_visibility(self) -> None:
         """Toggle preview panel visibility based on window width."""
 
-        if self.section != "LAYOUT": return
+        if self.section not in ("LAYOUT", "DUMMY"): return
 
         width = self._root.winfo_width()
         if width < self._preview_visible_at:
@@ -1861,7 +2145,13 @@ class UI:
         try:
             cfg = self._get_current_ui_config().get("LAYOUT", {})
 
-            info = PayloadInfo.from_dict(_DUMMY)
+            # On the Dummy tab show the live (unsaved) editor payload; elsewhere
+            # use the saved dummy on disk.
+            if self._active_section == "DUMMY" and self._dummy_preview_payload:
+                payload = self._dummy_preview_payload()
+            else:
+                payload = dummy.load()
+            info = PayloadInfo.from_dict(payload)
             
             code = self._receipt_locale_var.get() if hasattr(self, "_receipt_locale_var") else "en"
             locale = LocaleTH() if code == "th" else LocaleEN()
@@ -1939,8 +2229,8 @@ class UI:
         """Refresh the preview label if it exists."""
 
         if not self._preview_label: return
-        if self._active_section != "LAYOUT": return
-            
+        if self._active_section not in ("LAYOUT", "DUMMY"): return
+
         photo = self._generate_preview_image()
         if photo:
             self._preview_content_width = photo.width()
@@ -1972,6 +2262,14 @@ class UI:
 def _validate_digits(P: str) -> bool:
     if P == "": return True
     return P.isdigit()
+
+def _num_str(value: Any) -> str:
+    """Format a payload number for an entry field, dropping a trailing .0."""
+    if value is None or value == "":
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value)
 
 def _acquire_single_instance_mutex() -> Optional[int]:
     """Create a named mutex; return handle if acquired, else None when already running or failed."""
@@ -2011,7 +2309,7 @@ def print_preview(config: Optional[Config]=None, locale: Optional[Locale]=None) 
     printer_cfg = current_config.get("PRINTER", {})
     layout_cfg = current_config.get("LAYOUT", {})
 
-    info = PayloadInfo.from_dict(_DUMMY)
+    info = PayloadInfo.from_dict(dummy.load())
     if locale is None:
         rc = layout_cfg.get("receipt_locale", "en")
         locale = LocaleTH() if rc == "th" else LocaleEN()

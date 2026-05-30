@@ -38,6 +38,9 @@ assets/images/*.png
 # temp files
 temp.*
 
+# Dummy preview payload saved from the config UI's Dummy panel
+config/temp.dummy.json
+
 # Test
 test*
 

@@ -76,6 +76,9 @@ FIELD_SPECS: dict[str, list[FieldSpec]] = {
         separator(),
         checkbox("Debug Mode", "debug"),
     ],
+    # Editable example payload for the preview / test print. Rendered by a custom
+    # panel in the UI (see UI._build_dummy_section), so it has no flat fields here.
+    "DUMMY": [],
 }
 
 FILE_PICKER_FIELDS: dict[tuple[str, str], dict[str, Any]] = {
