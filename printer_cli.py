@@ -14,7 +14,7 @@ from config import settings
 from l10n import LocaleEN, LocaleTH
 from printer.driver import ReceiptPrinter
 from printer.renderer import generate_receipt_image
-from printer.template import validate_payload
+from printer.template import validate_payload, apply_payload_images
 from server.app import create_app
 from ui.main import main as launch_ui, print_preview
 from common.interface import PayloadInfo
@@ -26,9 +26,15 @@ def parse_arguments() -> argparse.Namespace:
         description="USB receipt printer CLI"
     )
     parser.add_argument(
-        "--header-image", 
-        dest="header_image", 
+        "--header-image",
+        dest="header_image",
         help="Optional header image path"
+    )
+    parser.add_argument(
+        "--header-image-scale",
+        dest="header_image_scale",
+        type=int,
+        help="Optional header image scale, percent of width (0-100)",
     )
     parser.add_argument(
         "--header-title", 
@@ -51,9 +57,15 @@ def parse_arguments() -> argparse.Namespace:
         help="Optional footer label override"
     )
     parser.add_argument(
-        "--footer-image", 
-        dest="footer_image", 
+        "--footer-image",
+        dest="footer_image",
         help="Optional footer image path"
+    )
+    parser.add_argument(
+        "--footer-image-scale",
+        dest="footer_image_scale",
+        type=int,
+        help="Optional footer image scale, percent of width (0-100)",
     )
     parser.add_argument(
         "--payload",
@@ -69,6 +81,12 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--port",
         help="Override printer queue as 'PORT:PRINTER_NAME' (e.g., USB001:XP-58)",
+    )
+    parser.add_argument(
+        "--paper-width",
+        dest="paper_width",
+        choices=["58", "80"],
+        help="Override paper width in mm (58 or 80)",
     )
     parser.add_argument(
         "--config",
@@ -112,7 +130,7 @@ def load_payload(payload_arg: str) -> dict:
     except json.JSONDecodeError as exc:
         raise ValueError("Payload must be valid JSON or a readable JSON file path") from exc
 
-def configure_printer(port_override: Optional[str]) -> dict:
+def configure_printer(port_override: Optional[str], paper_width: Optional[str] = None) -> dict:
     printer_cfg = deepcopy(settings.PRINTER)
     if port_override:
         if ":" not in port_override:
@@ -120,10 +138,21 @@ def configure_printer(port_override: Optional[str]) -> dict:
         port, name = port_override.split(":", 1)
         printer_cfg["usb_port"] = port or printer_cfg.get("usb_port")
         printer_cfg["usb_name"] = name or printer_cfg.get("usb_name")
+    if paper_width:
+        # Map the CLI value (e.g. "80") to the settings key ("80 mm") and apply the
+        # matching line_width / pixel_width used by the driver.
+        paper_width_key = f"{paper_width} mm"
+        printer_cfg["paper_width"] = paper_width_key
+        settings.apply_paper_width({"PRINTER": printer_cfg}, paper_width_key)
     return printer_cfg
 
-def build_layout(args: argparse.Namespace) -> dict:
+def build_layout(args: argparse.Namespace, payload_images: Optional[dict] = None) -> dict:
     layout = deepcopy(settings.LAYOUT)
+
+    # Payload images sit below CLI flags in precedence.
+    apply_payload_images(layout, payload_images)
+
+    # String overrides: skip when empty/None.
     overrides = {
         "header_image": args.header_image,
         "header_title": args.header_title,
@@ -135,6 +164,18 @@ def build_layout(args: argparse.Namespace) -> dict:
     for key, value in overrides.items():
         if value:
             layout[key] = value
+
+    # Numeric scale overrides: 0 is valid, so check `is not None`.
+    scale_overrides = {
+        "header_image_scale": args.header_image_scale,
+        "footer_image_scale": args.footer_image_scale,
+    }
+    for key, value in scale_overrides.items():
+        if value is not None:
+            if not 0 <= value <= 100:
+                raise ValueError(f"{key} must be between 0 and 100")
+            layout[key] = value
+
     return layout
 
 def parse_serve_address(value: Optional[str]) -> tuple[str, int]:
@@ -233,10 +274,9 @@ def main() -> int:
         print(f"[ERROR] {exc}", file=sys.stderr)
         return 2
 
-    layout = build_layout(args)
-
     try:
-        printer_config = configure_printer(args.port)
+        layout = build_layout(args, validated.get("images"))
+        printer_config = configure_printer(args.port, args.paper_width)
     except ValueError as exc:
         print(f"[ERROR] {exc}", file=sys.stderr)
         return 2
