@@ -41,7 +41,10 @@ printer --payload <JSON string|path> [options]
 | `--receipt-title` | Override receipt title text printed above the items list. |
 | `--footer-label` | Override footer text printed before cutting. |
 | `--footer-image` | Override footer image path. |
+| `--header-image-scale` | Override header image scale as a percent of width (`0`–`100`). |
+| `--footer-image-scale` | Override footer image scale as a percent of width (`0`–`100`). |
 | `--port` | Override printer queue in `PORT:NAME` form, e.g. `USB001:"XP-58 (copy 1)"`. |
+| `--paper-width` | Override paper width in mm: `58` or `80`. Sets the matching line/pixel width for this print. |
 | `--config` | Launch the Tkinter configuration UI and exit without printing. |
 | `--test` | Print a test page with dummy data to verify printer setup and auto-calculation. |
 | `--serve` | Run the Flask API server (optionally specify host:port). |
@@ -76,6 +79,12 @@ printer --test
 
 ```cmd
 printer --payload receipts/demo.json --locale th
+```
+
+### Print on 80mm paper
+
+```cmd
+printer --payload receipts/demo.json --paper-width 80
 ```
 
 The `--locale` flag overrides the saved `LAYOUT.receipt_locale` for the current print job. To change the default persisted locale, use the configuration UI (Layout → Preview) or update the `receipt_locale` key under the `LAYOUT` section in the settings JSON.
@@ -119,7 +128,9 @@ printer --payload receipts/demo.json ^
 ```cmd
 printer --payload receipts/demo.json ^
     --header-image assets/images/custom_header.png ^
+    --header-image-scale 100 ^
     --footer-image assets/images/custom_footer.png ^
+    --footer-image-scale 60 ^
     --port USB001:"XP-58 (copy 2)"
 ```
 
@@ -132,6 +143,8 @@ printer --payload "{\"header_info\":{\"Customer Name\":\"PTT\"},\"items\":[{\"na
 
 ```json
 {
+    "rfid": "",
+    "info-title": "Tax Invoice (ABB)",
     "header_info": {
         "Customer Name": "Dummy",
         "Customer Code": "CT-9904",
@@ -153,20 +166,36 @@ printer --payload "{\"header_info\":{\"Customer Name\":\"PTT\"},\"items\":[{\"na
         "change": 127.50,
         "discount": 10.00,
         "total": 382.50
+    },
+    "images": {
+        "header": {
+            "src": "assets/images/custom_header.png",
+            "scale": 100
+        },
+        "footer": {
+            "src": "data:image/png;base64,iVBORw0KGgo...",
+            "scale": 60
+        }
     }
 }
 ```
 
 Field notes:
 
-- `header_info` *(optional object)* – arbitrary key/value pairs for header information (e.g., customer details, transaction ID).
-- `items` *(required list)* – each entry must include `name` (string), `amount` (price per unit), and `quantity` (number of units).
-- `footer_info` *(optional object)* – arbitrary key/value pairs for footer information (e.g., points, notes).
-- `transaction_info` *(optional object)* – transaction details with auto-calculation:
+- `rfid` *(optional string)* – printed at the top-left of the receipt in the small font. Empty by default (not printed when blank).
+- `info-title` *(optional string)* – printed centered just after the header description, in the main font size. Empty by default.
+- `header_info` *(optional object)* – arbitrary key/value pairs for header information (e.g., customer details, transaction ID). Keys matching the recognized set (see the table in `README.md`, e.g. `Transaction`, `Cashier`, `Date`) are auto-translated to the active locale's label; unrecognized keys print verbatim.
+- `items` *(required, non-empty list)* – each entry must include `name` (string), `amount` (price per unit), and `quantity` (number of units). The per-line total is `amount × quantity`. Items render as four columns: **Item / Amount / Qty / Total**.
+- `footer_info` *(optional object)* – arbitrary key/value pairs for footer information (e.g., points, notes). Recognized keys are auto-translated like `header_info`.
+- `transaction_info` *(optional object)* – transaction details with auto-calculation. Only the four keys below are read; any others are ignored.
   - `received` *(optional number)* – amount received from customer.
   - `change` *(optional number)* – change to return (auto-calculated if `received` and `total` known).
   - `discount` *(optional number)* – discount amount (applied to items total if `total` not provided).
   - `total` *(optional number)* – final total (auto-calculated from items if not provided).
+- `images` *(optional object)* – per-print header/footer images, each with:
+  - `src` *(string)* – a file path **or** a base64 string / `data:` URI of the image.
+  - `scale` *(optional number)* – render size as a percent of width (`0`–`100`).
+  - **Precedence:** the CLI flags `--header-image` / `--footer-image` / `--header-image-scale` / `--footer-image-scale` override the payload `images`, which in turn override the saved layout config.
 
 **Auto-calculation rules:**
 - If `total` not provided, it's calculated as sum of `amount × quantity` for all items.
@@ -175,6 +204,22 @@ Field notes:
 - If `change` and `total` known but `received` not, `received = total + change`.
 - If `received` and `change` both provided, `total = received - change` (authoritative).
 - If `received` and `change` both provided but `discount` not, `discount = items_total - total`.
+- All derived monetary values are rounded to 2 decimals.
+
+**Auto-derived display fields** (added for you — do not send these):
+- Resolved `received`, `change`, and `discount` are appended to `footer_info` and print in the footer block as **Received**, **Change**, and **Discount**.
+- A **Value** (pre-VAT) line and a **VAT 7%** line are computed from the total and printed just above it whenever the total is positive. VAT is treated as already included in the total: `vat = ⌊total × 0.07 / 1.07⌋`, `value = total − vat`.
+
+**Legacy payload format** (still accepted for backward compatibility): if any of `customer`, `transection`, `promotion`, `points`, or `extras` appears at the top level, the payload is auto-converted to the structure above:
+
+| Legacy field | Mapped to |
+| ------------ | --------- |
+| `customer` `{ "name", "code" }` | `header_info` → `Customer name` / `Customer Code` |
+| `transection` *(note spelling)* | `header_info["Transaction"]` |
+| `promotion` | `header_info["Promotion"]` |
+| `points` | `footer_info["Points"]` |
+| `total` | `transaction_info.total` |
+| `extras` *(object)* | merged into `transaction_info` |
 
 ## 5. Printer Feedback
 

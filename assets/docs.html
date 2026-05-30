@@ -1,330 +1,408 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>USB Printer Service - Developer Documentation</title>
+    <title>USB Printer Service — Integration Guide</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --primary: #4f46e5;
-            --primary-hover: #4338ca;
+        :root[data-theme="dark"] {
             --bg: #0f172a;
             --card-bg: #1e293b;
             --text: #f1f5f9;
             --text-muted: #94a3b8;
             --border: #334155;
             --accent: #818cf8;
-            --code-bg: #000000;
+            --primary: #4f46e5;
+            --code-bg: #0b1120;
+            --inline-bg: rgba(129, 140, 248, 0.15);
+            --scroll-thumb: #3a4866;
+            --scroll-thumb-hover: #56688f;
         }
+        :root[data-theme="light"] {
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #0f172a;
+            --text-muted: #475569;
+            --border: #e2e8f0;
+            --accent: #4f46e5;
+            --primary: #4f46e5;
+            --code-bg: #1e293b;
+            --inline-bg: rgba(79, 70, 229, 0.1);
+            --scroll-thumb: #cbd5e1;
+            --scroll-thumb-hover: #94a3b8;
+        }
+        :root { --green: #22c55e; --blue: #3b82f6; --amber: #f59e0b; }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html { scroll-behavior: smooth; }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Inter', 'Noto Sans Thai', -apple-system, BlinkMacSystemFont, sans-serif;
             background-color: var(--bg);
             color: var(--text);
-            line-height: 1.6;
+            line-height: 1.65;
             overflow-x: hidden;
+            transition: background-color 0.25s, color 0.25s;
         }
+        :lang(th) { font-family: 'Noto Sans Thai', 'Inter', sans-serif; }
 
-        .container {
-            display: flex;
-            min-height: 100vh;
+        /* Themed scrollbars */
+        * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
+        ::-webkit-scrollbar { width: 11px; height: 11px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb {
+            background: var(--scroll-thumb);
+            border-radius: 8px;
+            border: 3px solid var(--bg);
         }
+        ::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); }
+        ::-webkit-scrollbar-corner { background: transparent; }
+        pre::-webkit-scrollbar { height: 9px; }
+        pre::-webkit-scrollbar-thumb { border-width: 2px; }
 
-        /* Sidebar */
+        .container { display: flex; min-height: 100vh; }
+
         aside {
-            width: 280px;
-            background-color: var(--card-bg);
+            width: 280px; background-color: var(--card-bg);
             border-right: 1px solid var(--border);
-            padding: 2rem;
-            position: sticky;
-            top: 0;
-            height: 100vh;
-            overflow-y: auto;
+            padding: 1.75rem 1.5rem; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+            transition: background-color 0.25s, border-color 0.25s;
         }
+        .logo { font-size: 1.2rem; font-weight: 700; color: var(--accent); display: flex; align-items: center; gap: 0.5rem; }
+        .logo-sub { font-size: 0.75rem; color: var(--text-muted); margin: 0.2rem 0 1.25rem; }
 
-        .logo {
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: var(--accent);
-            margin-bottom: 2rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .nav-list {
-            list-style: none;
-        }
-
-        .nav-item {
-            margin-bottom: 0.5rem;
-        }
-
+        .nav-list { list-style: none; }
+        .nav-group { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin: 1.15rem 0 0.4rem; font-weight: 700; }
+        .nav-item { margin-bottom: 0.1rem; }
         .nav-link {
-            text-decoration: none;
-            color: var(--text-muted);
-            font-size: 0.9rem;
-            font-weight: 500;
-            transition: all 0.2s;
-            display: block;
-            padding: 0.5rem 0.75rem;
-            border-radius: 0.375rem;
+            text-decoration: none; color: var(--text-muted); font-size: 0.875rem; font-weight: 500;
+            transition: all 0.15s; display: block; padding: 0.4rem 0.75rem; border-radius: 0.375rem;
         }
+        .nav-link:hover { color: var(--text); background-color: rgba(127, 127, 127, 0.12); }
+        .nav-link.active { color: #fff; background-color: var(--primary); }
 
-        .nav-link:hover {
-            color: var(--text);
-            background-color: rgba(255, 255, 255, 0.05);
+        /* Top-right controls */
+        .controls {
+            position: fixed; top: 1rem; right: 1.25rem; z-index: 50;
+            display: flex; align-items: center; gap: 0.5rem;
         }
+        .controls button {
+            font-family: inherit; font-size: 0.78rem; font-weight: 600; cursor: pointer;
+            background: var(--card-bg); color: var(--text); border: 1px solid var(--border);
+            padding: 0.4rem 0.7rem; border-radius: 0.5rem; transition: all 0.15s;
+        }
+        .controls button:hover { border-color: var(--accent); }
+        .lang-switch { display: flex; border: 1px solid var(--border); border-radius: 0.5rem; overflow: hidden; background: var(--card-bg); }
+        .lang-switch button { border: none; border-radius: 0; padding: 0.4rem 0.65rem; }
+        .lang-btn.active { background: var(--primary); color: #fff; }
 
-        .nav-link.active {
-            color: var(--text);
-            background-color: var(--primary);
-        }
+        main { flex: 1; padding: 3.5rem 5rem; max-width: 1040px; }
+        h1 { font-size: 2.4rem; font-weight: 800; margin-bottom: 0.6rem; letter-spacing: -0.025em; }
+        .lead { font-size: 1.08rem; color: var(--text-muted); margin-bottom: 1.5rem; }
+        h2 { font-size: 1.55rem; font-weight: 700; margin-top: 3.25rem; margin-bottom: 1.1rem; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; scroll-margin-top: 1rem; }
+        h3 { font-size: 1.18rem; font-weight: 600; margin-top: 1.85rem; margin-bottom: 0.75rem; }
+        h4 { font-size: 0.98rem; font-weight: 600; margin-top: 1.4rem; margin-bottom: 0.55rem; color: var(--accent); }
+        p { margin-bottom: 1rem; color: var(--text-muted); }
+        ul, ol { margin-left: 1.5rem; margin-bottom: 1.15rem; color: var(--text-muted); }
+        li { margin-bottom: 0.3rem; }
+        strong { color: var(--text); }
+        a { color: var(--accent); }
 
-        /* Main Content */
-        main {
-            flex: 1;
-            padding: 4rem 6rem;
-            max-width: 1000px;
-        }
+        code { font-family: 'JetBrains Mono', monospace; background-color: var(--inline-bg); padding: 0.12rem 0.4rem; border-radius: 0.25rem; font-size: 0.85em; color: var(--accent); }
+        pre { background-color: var(--code-bg); padding: 1.2rem 1.4rem; border-radius: 0.7rem; overflow-x: auto; margin-bottom: 1.4rem; border: 1px solid var(--border); }
+        pre code { background-color: transparent; padding: 0; color: #e2e8f0; font-size: 0.85rem; }
 
-        h1 {
-            font-size: 2.5rem;
-            font-weight: 800;
-            margin-bottom: 1rem;
-            letter-spacing: -0.025em;
-        }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 1.4rem; border: 1px solid var(--border); border-radius: 0.5rem; overflow: hidden; font-size: 0.9rem; }
+        th, td { padding: 0.7rem 1rem; text-align: left; border-bottom: 1px solid var(--border); vertical-align: top; }
+        th { background-color: rgba(127, 127, 127, 0.08); font-weight: 600; color: var(--text); }
+        td { color: var(--text-muted); }
+        td code { white-space: nowrap; }
+        tr:last-child td { border-bottom: none; }
 
-        h2 {
-            font-size: 1.75rem;
-            font-weight: 700;
-            margin-top: 3rem;
-            margin-bottom: 1.5rem;
-            border-bottom: 1px solid var(--border);
-            padding-bottom: 0.5rem;
-        }
+        blockquote { border-left: 4px solid var(--primary); padding: 0.8rem 1.2rem; background-color: rgba(79, 70, 229, 0.1); margin-bottom: 1.4rem; border-radius: 0 0.5rem 0.5rem 0; }
+        blockquote p { margin-bottom: 0; color: var(--text); }
 
-        h3 {
-            font-size: 1.25rem;
-            font-weight: 600;
-            margin-top: 2rem;
-            margin-bottom: 1rem;
-        }
+        .method { display: inline-block; padding: 0.12rem 0.5rem; border-radius: 0.3rem; font-size: 0.72rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; color: #fff; }
+        .method.get { background-color: var(--green); }
+        .method.post { background-color: var(--blue); }
+        .req { color: var(--amber); font-weight: 600; }
 
-        p {
-            margin-bottom: 1.25rem;
-            color: var(--text-muted);
-        }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.4rem; }
+        .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 0.6rem; padding: 1rem 1.2rem; }
+        .card h4 { margin-top: 0; }
+        .card p { font-size: 0.85rem; margin-bottom: 0; }
 
-        code {
-            font-family: 'JetBrains Mono', monospace;
-            background-color: var(--code-bg);
-            padding: 0.2rem 0.4rem;
-            border-radius: 0.25rem;
-            font-size: 0.9em;
-            color: var(--accent);
-        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        main > * { animation: fadeIn 0.35s ease-out forwards; }
 
-        pre {
-            background-color: var(--code-bg);
-            padding: 1.5rem;
-            border-radius: 0.75rem;
-            overflow-x: auto;
-            margin-bottom: 1.5rem;
-            border: 1px solid var(--border);
-        }
-
-        pre code {
-            background-color: transparent;
-            padding: 0;
-            color: #e2e8f0;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 1.5rem;
-            border: 1px solid var(--border);
-            border-radius: 0.5rem;
-            overflow: hidden;
-        }
-
-        th, td {
-            padding: 1rem;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-        }
-
-        th {
-            background-color: rgba(255, 255, 255, 0.05);
-            font-weight: 600;
-            color: var(--text);
-        }
-
-        td {
-            color: var(--text-muted);
-        }
-
-        blockquote {
-            border-left: 4px solid var(--primary);
-            padding: 1rem 1.5rem;
-            background-color: rgba(79, 70, 229, 0.1);
-            margin-bottom: 1.5rem;
-            border-radius: 0 0.5rem 0.5rem 0;
-        }
-
-        blockquote p {
-            margin-bottom: 0;
-            color: var(--text);
-            font-style: italic;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 0.25rem 0.5rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            background-color: var(--primary);
-            color: white;
-            margin-left: 0.5rem;
-        }
-
-        /* Animations */
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        main > * {
-            animation: fadeIn 0.5s ease-out forwards;
-        }
-
-        @media (max-width: 1024px) {
-            main {
-                padding: 4rem 2rem;
-            }
-            aside {
-                display: none;
-            }
-        }
+        @media (max-width: 1024px) { main { padding: 4.5rem 1.5rem 3rem; } aside { display: none; } }
     </style>
 </head>
 <body>
+    <div class="controls">
+        <button id="theme-toggle">☀ Light</button>
+        <div class="lang-switch">
+            <button class="lang-btn" data-lang="en">EN</button>
+            <button class="lang-btn" data-lang="th">ไทย</button>
+        </div>
+    </div>
+
     <div class="container">
         <aside>
             <div class="logo">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9V2h12v7"></path><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
                 Printer Service
             </div>
+            <div class="logo-sub" data-th="คู่มือการเชื่อมต่อ">Integration Guide</div>
             <ul class="nav-list">
-                <li class="nav-item"><a href="#installation" class="nav-link">1. Installation</a></li>
-                <li class="nav-item"><a href="#path" class="nav-link">2. Add to PATH</a></li>
-                <li class="nav-item"><a href="#syntax" class="nav-link">3. CLI Syntax</a></li>
-                <li class="nav-item"><a href="#examples" class="nav-link">4. Examples</a></li>
-                <li class="nav-item"><a href="#feedback" class="nav-link">5. Printer Feedback</a></li>
+                <li class="nav-group" data-th="เริ่มต้นใช้งาน">Getting started</li>
+                <li class="nav-item"><a href="#overview" class="nav-link" data-th="ภาพรวม">Overview</a></li>
+                <li class="nav-item"><a href="#running" class="nav-link" data-th="การเรียกใช้เซอร์วิส">Running the service</a></li>
+                <li class="nav-item"><a href="#quickstart" class="nav-link" data-th="เริ่มต้นอย่างรวดเร็ว">Quick start</a></li>
+
+                <li class="nav-group" data-th="HTTP API">HTTP API</li>
+                <li class="nav-item"><a href="#endpoints" class="nav-link" data-th="เอนด์พอยต์">Endpoints</a></li>
+                <li class="nav-item"><a href="#print" class="nav-link" data-th="พิมพ์ใบเสร็จ">Print a receipt</a></li>
+                <li class="nav-item"><a href="#errors" class="nav-link" data-th="ข้อผิดพลาดและสถานะ">Errors &amp; status</a></li>
+
+                <li class="nav-group" data-th="เพย์โหลด">Payload</li>
+                <li class="nav-item"><a href="#schema" class="nav-link" data-th="โครงสร้างเพย์โหลด">Schema</a></li>
+                <li class="nav-item"><a href="#calc" class="nav-link" data-th="การคำนวณอัตโนมัติ">Auto-calculation</a></li>
+                <li class="nav-item"><a href="#images" class="nav-link" data-th="รูปภาพ">Images</a></li>
+                <li class="nav-item"><a href="#localization" class="nav-link" data-th="ภาษาใบเสร็จ">Localization</a></li>
+
+                <li class="nav-group" data-th="ช่องทางอื่น">Other ways</li>
+                <li class="nav-item"><a href="#cli" class="nav-link" data-th="การเชื่อมต่อผ่าน CLI">CLI integration</a></li>
             </ul>
         </aside>
+
         <main>
-            <h1>USB Receipt Printer CLI & Cash Drawer</h1>
-            <p>Command-line tools for printing LINESeedSans-based fuel receipts and opening the cash drawer via ESC/POS USB printers (XP-58 / XP-58IIH).</p>
+            <h1 data-th="USB Printer Service — คู่มือการเชื่อมต่อ">USB Printer Service — Integration Guide</h1>
+            <p class="lead" data-th="วิธีที่แอปพลิเคชันของคุณสื่อสารกับเซอร์วิสเครื่องพิมพ์ผ่าน HTTP หรือคอมมานด์ไลน์ เพื่อพิมพ์ใบเสร็จและเปิดลิ้นชักเก็บเงิน">How your application talks to the printer service — over HTTP or the command line — to print receipts and open the cash drawer.</p>
 
-            <h2 id="installation">1. Installation</h2>
-            <ol style="margin-left: 1.5rem; margin-bottom: 1.5rem; color: var(--text-muted);">
-                <li><strong>Clone / copy</strong> this repository locally.</li>
-                <li><strong>Install Python 3.10+</strong> (Windows). Make sure <code>python</code> and <code>pip</code> are available in your terminal.</li>
-                <li><strong>Install dependencies</strong> inside the project folder:
-                    <pre><code>pip install -r requirements.txt</code></pre>
-                </li>
-                <li><strong>Verify pywin32</strong> is installed (required for Win32Raw printing).</li>
-            </ol>
+            <h2 id="overview" data-th="ภาพรวม">Overview</h2>
+            <p data-th="เซอร์วิสนี้รับเพย์โหลด JSON เรนเดอร์เป็นภาพใบเสร็จ แล้วส่งไปยังเครื่องพิมพ์ ESC/POS ผ่าน USB โดยมีช่องทางการเชื่อมต่อสองแบบที่ใช้กระบวนการเรนเดอร์เดียวกัน:">The service takes a JSON payload, renders it to a receipt image, and sends it to a USB ESC/POS printer. It offers two integration surfaces that share one rendering pipeline:</p>
+            <div class="grid">
+                <div class="card">
+                    <h4>HTTP API</h4>
+                    <p data-th="ส่งเพย์โหลด JSON ไปยัง POST /print เหมาะกับการเชื่อมต่อระบบ POS หรือเว็บ">Send a JSON payload to <code>POST /print</code>. Best for POS or web integrations.</p>
+                </div>
+                <div class="card">
+                    <h4>Command line</h4>
+                    <p data-th="เรียก printer --payload จากโปรเซสใด ๆ เหมาะกับสคริปต์ในเครื่อง">Invoke <code>printer --payload</code> from any process. Best for local scripts.</p>
+                </div>
+            </div>
+            <p data-th="ทั้งสองแบบให้ผลลัพธ์ใบเสร็จเหมือนกัน เลือกใช้ HTTP เมื่อแอปของคุณอยู่คนละเครื่องหรือเป็นเว็บ และใช้ CLI เมื่ออยู่บนเครื่องเดียวกับเครื่องพิมพ์">Both produce an identical receipt. Use HTTP when your app is remote or browser-based; use the CLI when it runs on the same machine as the printer.</p>
 
-            <h2 id="path">2. Add CLI to PATH <span class="badge">Recommended</span></h2>
-            <p>The helper batch file <code>printer.bat</code> lives in the project root. Add that folder to your PATH so <code>printer</code> works from any directory.</p>
-            <ol style="margin-left: 1.5rem; margin-bottom: 1.5rem; color: var(--text-muted);">
-                <li>Open <em>System Properties → Advanced → Environment Variables</em>.</li>
-                <li>Edit the <strong>Path</strong> entry under your user account.</li>
-                <li>Add the absolute path to this repository, e.g. <code>C:\Users\TheSt\Desktop\Dev\usb_printer_service</code>.</li>
-                <li>Open a new <code>cmd</code> window and verify: <code>printer --help</code>.</li>
-            </ol>
-            <blockquote>
-                <p>Without PATH changes you can still run <code>python cli.py ...</code> inside the repo.</p>
-            </blockquote>
+            <h2 id="running" data-th="การเรียกใช้เซอร์วิส">Running the service</h2>
+            <p data-th="เริ่มเซิร์ฟเวอร์ HTTP เพื่อให้แอปอื่นเชื่อมต่อได้:">Start the HTTP server so other apps can reach it:</p>
+            <pre><code>python main.py
+# or, from the CLI, optionally with host:port
+printer --serve
+printer --serve localhost:6000</code></pre>
+            <p data-th="โฮสต์ พอร์ต และโหมดดีบักมาจากการตั้งค่าเซอร์วิส (ค่าเริ่มต้น 0.0.0.0:5000) มีการเปิดใช้ CORS แอปบนเบราว์เซอร์จึงเรียกได้โดยตรง">Host, port and debug come from the service settings (default <code>0.0.0.0:5000</code>). CORS is enabled, so browser apps can call it directly.</p>
 
-            <h2 id="syntax">3. CLI Syntax</h2>
-            <h3>Print Receipt</h3>
-            <pre><code>printer --payload &lt;JSON string|path&gt; [options]</code></pre>
+            <h2 id="quickstart" data-th="เริ่มต้นอย่างรวดเร็ว">Quick start</h2>
+            <p data-th="พิมพ์ใบเสร็จแรกของคุณด้วยคำขอเดียว:">Print your first receipt with a single request:</p>
+            <pre><code>curl -X POST http://localhost:5000/print ^
+  -H "Content-Type: application/json" ^
+  -d "{\"items\":[{\"name\":\"Gasohol 95\",\"amount\":38.25,\"quantity\":10}],\"transaction_info\":{\"received\":500}}"</code></pre>
+            <p data-th="การตอบกลับสถานะ 200 พร้อมยอดรวมที่คำนวณได้ ยืนยันว่าส่งงานพิมพ์ไปยังเครื่องพิมพ์แล้ว">A <code>200</code> response with the computed total confirms the job was sent to the printer.</p>
+            <pre><code>{ "status": "printed", "total": 382.5 }</code></pre>
+
+            <h2 id="endpoints" data-th="เอนด์พอยต์">Endpoints</h2>
             <table>
-                <thead>
-                    <tr>
-                        <th>Option</th>
-                        <th>Description</th>
-                    </tr>
-                </thead>
+                <thead><tr><th data-th="เอนด์พอยต์">Endpoint</th><th data-th="คำอธิบาย">Description</th></tr></thead>
                 <tbody>
-                    <tr>
-                        <td><code>--payload</code></td>
-                        <td><strong>Required unless <code>--config</code>, <code>--test</code>, or <code>--serve</code> is used</strong>. JSON string or path to a JSON file.</td>
-                    </tr>
-                    <tr>
-                        <td><code>--locale</code></td>
-                        <td>Locale for receipt text; choose <code>en</code> or <code>th</code>.</td>
-                    </tr>
-                    <tr>
-                        <td><code>--header-image</code></td>
-                        <td>Override header image path.</td>
-                    </tr>
-                    <tr>
-                        <td><code>--serve</code></td>
-                        <td>Run the Flask API server.</td>
-                    </tr>
+                    <tr><td><span class="method get">GET</span> <code>/health</code></td><td data-th="ตรวจสอบสถานะการทำงาน คืนค่า { &quot;status&quot;: &quot;ok&quot; }">Liveness probe. Returns <code>{ "status": "ok" }</code>.</td></tr>
+                    <tr><td><span class="method post">POST</span> <code>/print</code></td><td data-th="เรนเดอร์และพิมพ์ใบเสร็จ โดยส่งเพย์โหลดใน body">Render and print a receipt. The request body is the payload.</td></tr>
+                    <tr><td><span class="method post">POST</span> <code>/open-drawer</code></td><td data-th="เปิดลิ้นชักเก็บเงิน คืนค่า { &quot;status&quot;: &quot;drawer opened&quot; }">Open the cash drawer. Returns <code>{ "status": "drawer opened" }</code>.</td></tr>
+                    <tr><td><span class="method get">GET</span> <code>/docs</code></td><td data-th="หน้าเอกสารนี้">This documentation page.</td></tr>
                 </tbody>
             </table>
 
-            <h3>Open Cash Drawer</h3>
-            <pre><code>open-drawer [--port PORT:NAME]</code></pre>
-            <p>This command sends the ESC/POS "kick_drawer" signal to open the cash drawer attached to the printer.</p>
+            <h2 id="print" data-th="พิมพ์ใบเสร็จ">Print a receipt</h2>
+            <p data-th="ส่ง POST ไปยัง /print โดยตั้งค่า Content-Type: application/json และใส่เพย์โหลด (ดูหัวข้อ โครงสร้างเพย์โหลด) ใน body">Send a <code>POST</code> to <code>/print</code> with <code>Content-Type: application/json</code> and the payload (see <a href="#schema">Schema</a>) as the body.</p>
+            <h4 data-th="ตัวอย่าง — Python">Example — Python</h4>
+            <pre><code>import requests
 
-            <h2 id="examples">4. Examples</h2>
-            <h3>Basic print (payload file)</h3>
-            <pre><code>printer --payload receipts/demo.json</code></pre>
+payload = {
+    "header_info": {"Customer Name": "ACME", "Transaction": "TXN-1234"},
+    "items": [{"name": "Gasohol 95", "amount": 38.25, "quantity": 10}],
+    "transaction_info": {"received": 500},
+}
+r = requests.post("http://localhost:5000/print", json=payload, timeout=10)
+r.raise_for_status()
+print(r.json())   # {"status": "printed", "total": 382.5}</code></pre>
+            <h4 data-th="ตัวอย่าง — JavaScript">Example — JavaScript</h4>
+            <pre><code>const res = await fetch("http://localhost:5000/print", {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    items: [{ name: "Gasohol 95", amount: 38.25, quantity: 10 }],
+    transaction_info: { received: 500 },
+  }),
+});
+const data = await res.json();   // { status: "printed", total: 382.5 }</code></pre>
+            <h4 data-th="เปิดลิ้นชักเก็บเงิน">Open the cash drawer</h4>
+            <pre><code>curl -X POST http://localhost:5000/open-drawer</code></pre>
 
-            <h3>Print test page</h3>
-            <pre><code>printer --test</code></pre>
+            <h2 id="errors" data-th="ข้อผิดพลาดและสถานะ">Errors &amp; status</h2>
+            <p data-th="เมื่อสำเร็จจะได้สถานะ 200 เมื่อล้มเหลว body จะเป็น { &quot;error&quot;: &quot;...&quot; }">On success you get <code>200</code>. On failure the body is <code>{ "error": "..." }</code>.</p>
+            <table>
+                <thead><tr><th data-th="สถานะ">Status</th><th data-th="ความหมาย">Meaning</th></tr></thead>
+                <tbody>
+                    <tr><td><code>200</code></td><td data-th="เรนเดอร์และส่งใบเสร็จไปยังเครื่องพิมพ์แล้ว">Receipt rendered and sent to the printer.</td></tr>
+                    <tr><td><code>400</code></td><td data-th="JSON ไม่ถูกต้อง หรือเพย์โหลดไม่ผ่านการตรวจสอบ (เช่น ไม่มี items)">Invalid JSON, or the payload failed validation (e.g. missing <code>items</code>).</td></tr>
+                    <tr><td><code>500</code></td><td data-th="เครื่องพิมพ์หรือฮาร์ดแวร์ล้มเหลวระหว่างพิมพ์">Printer / hardware failure while printing.</td></tr>
+                </tbody>
+            </table>
+            <blockquote><p data-th="แนะนำให้ตั้ง timeout ของคำขอและลองใหม่เมื่อได้สถานะ 500 เนื่องจากเครื่องพิมพ์อาจไม่พร้อมชั่วคราว">Set a request timeout and retry on <code>500</code> — the printer may be momentarily unavailable.</p></blockquote>
 
-            <h3>Run the Flask API server</h3>
-            <pre><code>printer --serve
-printer --serve localhost:6000</code></pre>
+            <h2 id="schema" data-th="โครงสร้างเพย์โหลด">Payload schema</h2>
+            <p data-th="เพย์โหลดเดียวกันนี้ใช้ได้ทั้งกับ POST /print และ printer --payload">The same JSON body is accepted by both <code>POST /print</code> and <code>printer --payload</code>.</p>
+            <pre><code>{
+    "rfid": "",
+    "info-title": "Tax Invoice (ABB)",
+    "header_info": {
+        "Customer Name": "ACME",
+        "Transaction": "TXN-1234"
+    },
+    "items": [
+        { "name": "Gasohol 95", "amount": 38.25, "quantity": 10.0 }
+    ],
+    "footer_info": { "Points": "30" },
+    "transaction_info": {
+        "received": 500.00,
+        "change": 127.50,
+        "discount": 10.00,
+        "total": 382.50
+    },
+    "images": {
+        "header": { "src": "data:image/png;base64,iVBORw0KGgo...", "scale": 100 },
+        "footer": { "src": "assets/images/footer.png", "scale": 60 }
+    }
+}</code></pre>
+            <table>
+                <thead><tr><th data-th="ฟิลด์">Field</th><th data-th="ชนิด">Type</th><th data-th="คำอธิบาย">Notes</th></tr></thead>
+                <tbody>
+                    <tr><td><code>rfid</code></td><td>string</td><td data-th="ไม่บังคับ พิมพ์ที่มุมบนซ้ายด้วยฟอนต์ขนาดเล็ก ค่าเริ่มต้นว่าง">Optional. Printed at the <strong>top-left</strong> in the small font. Empty by default.</td></tr>
+                    <tr><td><code>info-title</code></td><td>string</td><td data-th="ไม่บังคับ พิมพ์กึ่งกลางหลังคำอธิบายส่วนหัว ด้วยฟอนต์ขนาดปกติ">Optional. Printed centered <strong>after the header description</strong> in the main font size.</td></tr>
+                    <tr><td><code>header_info</code></td><td>object</td><td data-th="ไม่บังคับ คู่คีย์/ค่าที่พิมพ์เหนือรายการสินค้า คีย์ที่รู้จักจะถูกแปลภาษาอัตโนมัติ (ดูหัวข้อ ภาษาใบเสร็จ)">Optional key/value pairs above the items. Recognized keys auto-translate (see <a href="#localization">Localization</a>).</td></tr>
+                    <tr><td><code>items</code></td><td>array</td><td data-th="บังคับ ต้องไม่ว่าง แต่ละรายการต้องมี name, amount (ราคาต่อหน่วย) และ quantity ยอดรวมต่อรายการ = amount × quantity">
+                        <span class="req">Required</span>, non-empty. Each needs <code>name</code>, <code>amount</code> (unit price) and <code>quantity</code>. Line total = <code>amount × quantity</code>.</td></tr>
+                    <tr><td><code>footer_info</code></td><td>object</td><td data-th="ไม่บังคับ คู่คีย์/ค่าที่พิมพ์ใต้ยอดรวม คีย์ที่รู้จักจะถูกแปลภาษาอัตโนมัติ">Optional key/value pairs below the total. Recognized keys auto-translate.</td></tr>
+                    <tr><td><code>transaction_info</code></td><td>object</td><td data-th="ไม่บังคับ อ่านเฉพาะคีย์ received, change, discount, total (ดูหัวข้อ การคำนวณอัตโนมัติ)">Optional. Only <code>received</code>, <code>change</code>, <code>discount</code>, <code>total</code> are read (see <a href="#calc">Auto-calculation</a>).</td></tr>
+                    <tr><td><code>images</code></td><td>object</td><td data-th="ไม่บังคับ รูปส่วนหัว/ส่วนท้ายต่อการพิมพ์ (ดูหัวข้อ รูปภาพ)">Optional per-print header/footer images (see <a href="#images">Images</a>).</td></tr>
+                </tbody>
+            </table>
+            <h4 data-th="รูปแบบเพย์โหลดเดิม (Legacy)">Legacy payload format</h4>
+            <p data-th="หากมีคีย์ใดคีย์หนึ่งต่อไปนี้ที่ระดับบนสุด: customer, transection, promotion, points หรือ extras เพย์โหลดจะถูกแปลงเป็นโครงสร้างด้านบนโดยอัตโนมัติ">If any of <code>customer</code>, <code>transection</code>, <code>promotion</code>, <code>points</code>, or <code>extras</code> is present at the top level, the payload is auto-converted to the structure above.</p>
 
-            <h2 id="feedback">5. Printer Feedback</h2>
-            <ul style="margin-left: 1.5rem; margin-bottom: 1.5rem; color: var(--text-muted);">
-                <li><strong>Receipt Print:</strong> On success, prints <code>[OK] Receipt printed successfully</code>.</li>
-                <li><strong>Test Print:</strong> On success, prints <code>[OK] Test page printed successfully</code>.</li>
-                <li><strong>Open Drawer:</strong> On success, the drawer opens and the command exits with code 0.</li>
+            <h2 id="calc" data-th="การคำนวณอัตโนมัติ">Auto-calculation</h2>
+            <p data-th="เมื่อ transaction_info ไม่ครบ ค่าที่ขาดจะถูกคำนวณจากยอดรวมของรายการสินค้า:">When <code>transaction_info</code> is partial, missing values are derived from the items total:</p>
+            <ul>
+                <li data-th="ถ้าไม่ระบุ total → ใช้ผลรวมของ amount × quantity ทุกรายการ">If <code>total</code> is omitted → sum of <code>amount × quantity</code> across items.</li>
+                <li data-th="ถ้าระบุ discount แต่ไม่ระบุ total → total = items_total − discount">If <code>discount</code> is given and <code>total</code> is omitted → <code>total = items_total − discount</code>.</li>
+                <li data-th="ถ้ารู้ received และ total แต่ไม่รู้ change → change = received − total">If <code>received</code> and <code>total</code> are known but not <code>change</code> → <code>change = received − total</code>.</li>
+                <li data-th="ถ้ารู้ change และ total แต่ไม่รู้ received → received = total + change">If <code>change</code> and <code>total</code> are known but not <code>received</code> → <code>received = total + change</code>.</li>
+                <li data-th="ถ้าระบุทั้ง received และ change → total = received − change (ถือเป็นค่าหลัก)">If both <code>received</code> and <code>change</code> are given → <code>total = received − change</code> (authoritative).</li>
+                <li data-th="ค่าตัวเงินที่คำนวณได้ทั้งหมดจะถูกปัดเป็นทศนิยม 2 ตำแหน่ง">All derived monetary values are rounded to 2 decimals.</li>
             </ul>
+            <p data-th="นอกจากนี้ received / change / discount ที่ได้จะถูกเพิ่มลงในส่วนท้ายโดยอัตโนมัติ และจะมีบรรทัด มูลค่า (ก่อน VAT) กับ VAT 7% เมื่อยอดรวมเป็นบวก">Additionally, the resolved <code>received</code> / <code>change</code> / <code>discount</code> are appended to the footer, and a <strong>Value</strong> (pre-VAT) and <strong>VAT 7%</strong> line appear when the total is positive.</p>
 
-            <p style="margin-top: 4rem; font-size: 0.8rem; text-align: center;">USB Printer Service Documentation &copy; 2026</p>
+            <h2 id="images" data-th="รูปภาพ">Images</h2>
+            <p data-th="ส่งรูปส่วนหัว/ส่วนท้ายต่อการพิมพ์ผ่านฟิลด์ images แต่ละช่องรับ:">Supply per-request header/footer images via the <code>images</code> field. Each slot accepts:</p>
+            <ul>
+                <li data-th="src — เส้นทางไฟล์ หรือ สตริง base64 / data: URI">
+                    <code>src</code> — a file path <strong>or</strong> a base64 string / <code>data:</code> URI.</li>
+                <li data-th="scale — ขนาดเป็นเปอร์เซ็นต์ของความกว้าง (0–100)">
+                    <code>scale</code> — render size as a percent of width (<code>0</code>–<code>100</code>).</li>
+            </ul>
+            <p data-th="ลำดับความสำคัญผ่าน API: รูปในเพย์โหลด มาก่อน การตั้งค่าเลย์เอาต์ที่บันทึกไว้ (เมื่อพิมพ์ผ่าน CLI แฟลก --header-image / --footer-image จะมาก่อนรูปในเพย์โหลดอีกชั้นหนึ่ง)">Precedence via the API: payload <code>images</code> override the saved layout config. (When printing via the CLI, the <code>--header-image</code> / <code>--footer-image</code> flags additionally override the payload.)</p>
+
+            <h2 id="localization" data-th="ภาษาใบเสร็จ">Localization</h2>
+            <p data-th="API จะเรนเดอร์ใบเสร็จตามภาษาที่ตั้งค่าไว้ในเซิร์ฟเวอร์ (Layout → receipt_locale: en หรือ th) ส่วน CLI สามารถระบุต่อการพิมพ์ด้วย --locale en|th คีย์ที่รู้จักใน header_info / footer_info จะถูกจับคู่กับป้ายกำกับตามภาษา (ไม่สนตัวพิมพ์เล็กใหญ่) คีย์ที่ไม่รู้จักจะพิมพ์ตามเดิม">The API renders receipts in the server's configured locale (Layout → <code>receipt_locale</code>: <code>en</code> or <code>th</code>). The CLI can override per-print with <code>--locale en|th</code>. Recognized keys in <code>header_info</code> / <code>footer_info</code> map to localized labels (case-insensitive); unknown keys print verbatim.</p>
+            <table>
+                <thead><tr><th data-th="คีย์ (อินพุต)">Key (input)</th><th>English</th><th data-th="ไทย">Thai</th></tr></thead>
+                <tbody>
+                    <tr><td><code>no.</code> / <code>number</code></td><td>No.</td><td>เลขที่</td></tr>
+                    <tr><td><code>customer name</code> / <code>customer code</code></td><td>Customer Name / Code</td><td>ชื่อลูกค้า / รหัสลูกค้า</td></tr>
+                    <tr><td><code>transaction</code> / <code>promotion</code></td><td>Transaction / Promotion</td><td>เลขรายการ / โปรโมชั่น</td></tr>
+                    <tr><td><code>date</code> / <code>time</code> / <code>cashier</code></td><td>Date / Time / Cashier</td><td>วันที่ / เวลา / พนักงานขาย</td></tr>
+                    <tr><td><code>address</code> / <code>branch</code> / <code>car plate</code></td><td>Address / Branch / Car Plate</td><td>ที่อยู่ / สาขา / ทะเบียนรถ</td></tr>
+                    <tr><td><code>tax id</code> / <code>tax id customer</code></td><td>Tax ID (store / customer)</td><td>เลขผู้เสียภาษี (ร้านค้า / ลูกค้า)</td></tr>
+                    <tr><td><code>points</code> / <code>received</code> / <code>change</code> / <code>discount</code></td><td>Points / Received / Change / Discount</td><td>คะแนน / รับเงิน / เงินทอน / ส่วนลด</td></tr>
+                </tbody>
+            </table>
+            <p data-th="ป้ายกำกับโครงสร้างคงที่จะแปลตามภาษาเสมอ: Item / Amount / Qty / Total (คอลัมน์รายการ), Value และ VAT 7% (สรุป) และ Total (ยอดรวมสุทธิ)">Fixed structural labels always localize: <strong>Item / Amount / Qty / Total</strong> (item columns), <strong>Value</strong> &amp; <strong>VAT 7%</strong> (summary), and the grand <strong>Total</strong>.</p>
+
+            <h2 id="cli" data-th="การเชื่อมต่อผ่าน CLI">CLI integration</h2>
+            <p data-th="แทนที่จะเรียกผ่าน HTTP แอปในเครื่องสามารถเรียกใช้ printer ได้โดยตรง โดยส่งเพย์โหลดเป็นสตริง JSON หรือเส้นทางไฟล์">Instead of HTTP, a local app can invoke <code>printer</code> directly, passing the payload as a JSON string or a file path.</p>
+            <pre><code># From a payload file, on 80 mm paper, in Thai
+printer --payload receipts/sale.json --paper-width 80 --locale th
+
+# Inline JSON
+printer --payload "{\"items\":[{\"name\":\"Gasohol 95\",\"amount\":38.25,\"quantity\":10}]}"
+
+# Open the cash drawer
+open-drawer</code></pre>
+            <p data-th="โค้ดออก (exit code): 0 = สำเร็จ, 1 = ข้อผิดพลาดขณะทำงาน (พิมพ์/ลิ้นชัก/เซิร์ฟเวอร์), 2 = ข้อผิดพลาดการใช้งานหรือการตรวจสอบ (เพย์โหลดไม่ถูกต้อง, --port / --serve / --paper-width ไม่ถูกต้อง) ข้อความสำเร็จขึ้นต้นด้วย [OK] และข้อผิดพลาดด้วย [ERROR] ทาง stderr">Exit codes: <code>0</code> success, <code>1</code> runtime error (print / drawer / server), <code>2</code> usage or validation error (bad payload, invalid <code>--port</code> / <code>--serve</code> / <code>--paper-width</code>). Success messages start with <code>[OK]</code>; errors print <code>[ERROR]</code> to stderr.</p>
+
+            <p style="margin-top: 4rem; font-size: 0.8rem; text-align: center; color: var(--text-muted);" data-th="USB Printer Service — คู่มือการเชื่อมต่อ">USB Printer Service — Integration Guide</p>
         </main>
     </div>
+
     <script>
-        // Smooth scrolling for navigation
-        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-            anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                document.querySelector(this.getAttribute('href')).scrollIntoView({
-                    behavior: 'smooth'
-                });
+        const root = document.documentElement;
+
+        // Capture the authored (English) HTML for every translatable node.
+        const i18nEls = Array.from(document.querySelectorAll('[data-th]'));
+        i18nEls.forEach(el => { el._en = el.innerHTML; });
+
+        function applyLang(lang) {
+            i18nEls.forEach(el => {
+                el.innerHTML = (lang === 'th') ? el.getAttribute('data-th') : el._en;
             });
+            root.lang = lang;
+            document.querySelectorAll('.lang-btn').forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+            try { localStorage.setItem('docs-lang', lang); } catch (e) {}
+        }
+
+        function applyTheme(theme) {
+            root.setAttribute('data-theme', theme);
+            document.getElementById('theme-toggle').textContent = theme === 'dark' ? '☀ Light' : '☾ Dark';
+            try { localStorage.setItem('docs-theme', theme); } catch (e) {}
+        }
+
+        let savedTheme = 'dark', savedLang = 'en';
+        try { savedTheme = localStorage.getItem('docs-theme') || 'dark'; savedLang = localStorage.getItem('docs-lang') || 'en'; } catch (e) {}
+        applyTheme(savedTheme);
+        applyLang(savedLang);
+
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            applyTheme(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
         });
+        document.querySelectorAll('.lang-btn').forEach(b => {
+            b.addEventListener('click', () => applyLang(b.dataset.lang));
+        });
+
+        // Scroll-spy active nav highlighting
+        const links = Array.from(document.querySelectorAll('.nav-link'));
+        const byId = new Map(links.map(a => [a.getAttribute('href').slice(1), a]));
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    links.forEach(l => l.classList.remove('active'));
+                    const link = byId.get(entry.target.id);
+                    if (link) link.classList.add('active');
+                }
+            });
+        }, { rootMargin: '0px 0px -75% 0px', threshold: 0 });
+        document.querySelectorAll('main h2[id]').forEach(h => observer.observe(h));
     </script>
 </body>
 </html>

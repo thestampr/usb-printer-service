@@ -61,6 +61,8 @@ Send a JSON payload to `POST http://localhost:5000/print` matching the structure
 
 ```json
 {
+    "rfid": "",
+    "info-title": "Tax Invoice (ABB)",
     "header_info": {
         "Customer Name": "Dummy",
         "Customer Code": "CT-9904",
@@ -82,20 +84,36 @@ Send a JSON payload to `POST http://localhost:5000/print` matching the structure
         "change": 127.50,
         "discount": 10.00,
         "total": 382.50
+    },
+    "images": {
+        "header": {
+            "src": "assets/images/custom_header.png",
+            "scale": 100
+        },
+        "footer": {
+            "src": "data:image/png;base64,iVBORw0KGgo...",
+            "scale": 60
+        }
     }
 }
 ```
 
 **Field notes**
 
-- `header_info` *(optional object)* – arbitrary key/value pairs for header information (e.g., customer details, transaction ID).
-- `items` *(required list)* – each item needs `name` (string), `amount` (price per unit), and `quantity` (number of units).
-- `footer_info` *(optional object)* – arbitrary key/value pairs for footer information (e.g., points, notes).
-- `transaction_info` *(optional object)* – transaction details with auto-calculation:
+- `rfid` *(optional string)* – printed at the top-left of the receipt in the small font. Empty by default (not printed when blank).
+- `info-title` *(optional string)* – printed centered just after the header description, in the main font size. Empty by default.
+- `header_info` *(optional object)* – arbitrary key/value pairs for header information (e.g., customer details, transaction ID). Recognized keys are auto-translated to the active locale (see the table below).
+- `items` *(required, non-empty list)* – each item needs `name` (string), `amount` (price per unit), and `quantity` (number of units). The per-line total is `amount × quantity`. Items render as four columns: **Item / Amount / Qty / Total**.
+- `footer_info` *(optional object)* – arbitrary key/value pairs for footer information (e.g., points, notes). Recognized keys are auto-translated like `header_info`.
+- `transaction_info` *(optional object)* – transaction details with auto-calculation. Only the four keys below are read; any others are ignored.
   - `received` *(optional number)* – amount received from customer.
   - `change` *(optional number)* – change to return (auto-calculated if `received` and `total` known).
   - `discount` *(optional number)* – discount amount (applied to items total if `total` not provided).
   - `total` *(optional number)* – final total (auto-calculated from items if not provided).
+- `images` *(optional object)* – per-request header/footer images, each with:
+  - `src` *(string)* – a file path **or** a base64 string / `data:` URI of the image.
+  - `scale` *(optional number)* – render size as a percent of width (`0`–`100`).
+  - **Precedence:** saved layout config < payload `images`. The `POST /print` API has no CLI layer, so the payload outranks saved config. From the CLI, the `--header-image` / `--footer-image` / `--header-image-scale` / `--footer-image-scale` flags additionally override the payload `images`.
 
 **Auto-calculation rules:**
 - If `total` not provided, it's calculated as sum of `amount × quantity` for all items.
@@ -104,6 +122,22 @@ Send a JSON payload to `POST http://localhost:5000/print` matching the structure
 - If `change` and `total` known but `received` not, `received = total + change`.
 - If `received` and `change` both provided, `total = received - change` (authoritative).
 - If `received` and `change` both provided but `discount` not, `discount = items_total - total`.
+- All derived monetary values are rounded to 2 decimals.
+
+**Auto-derived display fields** (added for you — do not send these):
+- Resolved `received`, `change`, and `discount` are appended to `footer_info` and print in the footer block as **Received**, **Change**, and **Discount**.
+- A **Value** (pre-VAT) line and a **VAT 7%** line are computed from the total and printed just above it whenever the total is positive. VAT is treated as already included in the total: `vat = ⌊total × 0.07 / 1.07⌋`, `value = total − vat`.
+
+**Legacy payload format** (still accepted for backward compatibility): if any of `customer`, `transection`, `promotion`, `points`, or `extras` appears at the top level, the payload is auto-converted to the structure above:
+
+| Legacy field | Mapped to |
+| ------------ | --------- |
+| `customer` `{ "name", "code" }` | `header_info` → `Customer name` / `Customer Code` |
+| `transection` *(note spelling)* | `header_info["Transaction"]` |
+| `promotion` | `header_info["Promotion"]` |
+| `points` | `footer_info["Points"]` |
+| `total` | `transaction_info.total` |
+| `extras` *(object)* | merged into `transaction_info` |
 
 ### Pre-translated header/footer keys
 
@@ -130,6 +164,18 @@ The renderer will automatically map a set of well-known keys in `header_info` an
 | `change` | Change | เงินทอน |
 | `discount` | Discount | ส่วนลด |
 
+The fixed structural labels below are always rendered in the active locale regardless of payload keys:
+
+| Element | English label | Thai label |
+| --- | --- | --- |
+| Items column – item | Item | รายการ |
+| Items column – amount | Amount | ราคา |
+| Items column – quantity | Qty | จำนวน |
+| Items column – line total | Total | รวม |
+| Summary – pre-VAT value | Value | มูลค่า |
+| Summary – VAT | VAT 7% | ภาษีมูลค่าเพิ่ม 7% |
+| Summary – grand total | Total | รวมทั้งหมด |
+
 Example:
 
 ```json
@@ -147,6 +193,20 @@ Quick example:
 
 ```cmd
 printer --payload receipts/demo.json --port USB001:"XP-58 (copy 1)"
+```
+
+Override header/footer images and their scale (percent of width, `0`–`100`) for a single print; these flags take precedence over any `images` in the payload:
+
+```cmd
+printer --payload receipts/demo.json ^
+    --header-image assets/images/custom_header.png --header-image-scale 100 ^
+    --footer-image assets/images/custom_footer.png --footer-image-scale 60
+```
+
+Override the paper width (`58` or `80` mm) for a single print, without changing the saved configuration:
+
+```cmd
+printer --payload receipts/demo.json --paper-width 80
 ```
 
 You can run the Flask API directly from the CLI (default host/port come from the current configuration):
