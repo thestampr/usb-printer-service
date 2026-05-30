@@ -6,8 +6,9 @@ from flask_cors import CORS
 
 from common.interface import PayloadInfo
 from config import settings
+from l10n import LocaleEN, LocaleTH
 from printer.driver import ReceiptPrinter
-from printer.template import validate_payload
+from printer.template import validate_payload, apply_payload_images
 from printer.renderer import generate_receipt_image
 
 printer_bp = Blueprint("printer", __name__)
@@ -31,12 +32,17 @@ def print_receipt():
     
     current_config = settings.get_all()
     printer_cfg = current_config.get("PRINTER", {})
-    layout_cfg = current_config.get("LAYOUT", {})
+    layout_cfg = dict(current_config.get("LAYOUT", {}))
+    apply_payload_images(layout_cfg, validated.get("images"))
+
+    # Render in the configured receipt locale (Layout -> receipt_locale).
+    locale = LocaleTH() if layout_cfg.get("receipt_locale", "en") == "th" else LocaleEN()
 
     info = PayloadInfo.from_dict(validated)
     img = generate_receipt_image(
         layout_cfg,
-        info
+        info,
+        locale=locale,
     )
     printer = ReceiptPrinter(printer_cfg)
 
@@ -48,7 +54,7 @@ def print_receipt():
     finally:
         printer.disconnect()
 
-    return jsonify({"status": "printed", "total": validated["total"]}), 200
+    return jsonify({"status": "printed", "total": info.total}), 200
 
 @printer_bp.route("/open-drawer", methods=["POST"])
 def open_drawer():
