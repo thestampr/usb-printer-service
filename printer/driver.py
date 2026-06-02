@@ -20,12 +20,86 @@ try:
 except ModuleNotFoundError:
     escpos_printer = None
 try:
-    importlib.import_module("win32print")
+    win32print = importlib.import_module("win32print")
     WIN32PRINT_AVAILABLE = True
 except ModuleNotFoundError:
+    win32print = None
     WIN32PRINT_AVAILABLE = False
 
 LOGGER = logging.getLogger(__name__)
+
+
+def list_printers() -> list[dict[str, str]]:
+    """Return installed Windows printers as ``{"name", "port"}`` dicts.
+
+    Empty list when win32print is unavailable (non-Windows or missing pywin32).
+    """
+    if not WIN32PRINT_AVAILABLE:
+        return []
+
+    flags = win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
+    printers: list[dict[str, str]] = []
+    try:
+        for info in win32print.EnumPrinters(flags, None, 2):
+            name = (info.get("pPrinterName") or "").strip()
+            if not name:
+                continue
+            printers.append({"name": name, "port": (info.get("pPortName") or "").strip()})
+    except Exception as exc:  # pragma: no cover - platform specific
+        LOGGER.warning("Failed to enumerate printers: %s", exc)
+    return printers
+
+
+def get_printer_port(name: str) -> Optional[str]:
+    """Return the port a Windows printer queue is bound to, or None."""
+    if not WIN32PRINT_AVAILABLE or not name:
+        return None
+    try:
+        handle = win32print.OpenPrinter(name)
+    except Exception:
+        return None
+    try:
+        info = win32print.GetPrinter(handle, 2)
+        port = info.get("pPortName")
+        return port.strip() if port else None
+    except Exception:
+        return None
+    finally:
+        win32print.ClosePrinter(handle)
+
+
+def test_connection(name: str, port: str = "") -> tuple[bool, str]:
+    """Non-destructively verify a printer queue is reachable.
+
+    Opens the Windows print queue by name (no document is started, so nothing
+    is printed) and confirms the prerequisites for the Win32Raw driver path.
+    Returns ``(ok, message)``.
+    """
+    if escpos_printer is None:
+        return False, "python-escpos is not installed; cannot print."
+    if not WIN32PRINT_AVAILABLE:
+        return False, "pywin32 (win32print) is not installed."
+
+    name = (name or "").strip()
+    if not name:
+        return False, "Printer name is required."
+
+    try:
+        handle = win32print.OpenPrinter(name)
+    except Exception as exc:
+        return False, f"Could not open printer '{name}': {exc}"
+    try:
+        info = win32print.GetPrinter(handle, 2)
+    except Exception as exc:
+        return False, f"Could not query printer '{name}': {exc}"
+    finally:
+        win32print.ClosePrinter(handle)
+
+    actual_port = (info.get("pPortName") or "").strip()
+    port = (port or "").strip()
+    if port and actual_port and port.lower() != actual_port.lower():
+        return True, f"Reachable, but it is on port '{actual_port}', not '{port}'."
+    return True, f"'{name}' is reachable on port '{actual_port or port or 'unknown'}'."
 
 
 class ReceiptPrinter:
@@ -183,4 +257,4 @@ class ReceiptPrinter:
         return image
 
 
-__all__ = ["ReceiptPrinter"]
+__all__ = ["ReceiptPrinter", "list_printers", "get_printer_port", "test_connection"]

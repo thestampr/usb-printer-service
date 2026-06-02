@@ -20,6 +20,7 @@ from common.interface import PayloadInfo
 from common import updater
 from config import settings
 from config import dummy
+from printer import driver
 from printer.driver import ReceiptPrinter
 from printer.renderer import generate_receipt_image
 from ui.layout import *
@@ -491,6 +492,7 @@ class UI:
     _DUMMY_KEY_COL = 220
     _DUMMY_NUM_COL = 120
     _DUMMY_REMOVE_COL = 28
+    _DUMMY_TOGGLE_COL = 26
 
     def _build_dummy_section(self, parent: tk.Widget) -> None:
         """Structured (Postman-style) editor for the example payload, section by section."""
@@ -517,7 +519,7 @@ class UI:
             def refresh_preview(*_) -> None:
                 self._update_preview_widget()
 
-            def section_card(title: str, hint: str = "") -> ttk.Frame:
+            def section_card(title: str, hint: str = "", add_bulk=None) -> ttk.Frame:
                 card = tk.Frame(
                     holder, bg=CARD_BG, highlightthickness=1,
                     highlightbackground=BORDER_COLOR, bd=0,
@@ -527,6 +529,9 @@ class UI:
                 inner.pack(fill="x", padx=14, pady=12)
                 top = ttk.Frame(inner, style="Config.Card.TFrame")
                 top.pack(fill="x", pady=(0, 2))
+                # Bulk (select-all) checkbox to the left of the section title.
+                if add_bulk is not None:
+                    add_bulk(top).pack(side="left", padx=(0, 10))
                 ttk.Label(
                     top, text=title, font=("Segoe UI", 13, "bold"),
                     style="Config.Title.TLabel",
@@ -548,106 +553,98 @@ class UI:
                 btn.bind("<Leave>", lambda e: btn.configure(fg=NAV_TEXT))
                 btn.bind("<Button-1>", lambda e: on_click())
 
-            # ---- Key/Value table (header_info / footer_info) ----
-            def kv_card(title: str, hint: str, initial: dict[str, Any]):
-                inner = section_card(title, hint)
-                rows: list[tuple[ttk.Frame, tk.StringVar, tk.StringVar]] = []
+            def make_toggle_group():
+                """Coordinate per-row enable checkboxes with one bulk (all) checkbox,
+                using the standard themed checkbox. Returns (toggle_row, bulk_toggle)."""
+                members: list[dict[str, Any]] = []
+                bulk = {"sync": (lambda: None)}
 
-                hdr = ttk.Frame(inner, style="Config.Card.TFrame")
-                hdr.pack(fill="x", pady=(8, 2))
-                hdr.columnconfigure(0, minsize=self._DUMMY_KEY_COL)
-                hdr.columnconfigure(1, weight=1)
-                hdr.columnconfigure(2, minsize=self._DUMMY_REMOVE_COL)
-                ttk.Label(hdr, text="KEY", style="Config.TLabel", foreground=NAV_TEXT,
-                          font=("Segoe UI", 8)).grid(row=0, column=0, sticky="w")
-                ttk.Label(hdr, text="VALUE", style="Config.TLabel", foreground=NAV_TEXT,
-                          font=("Segoe UI", 8)).grid(row=0, column=1, sticky="w")
+                def toggle_row(row_frame: ttk.Frame, column: int, entries,
+                               enabled: bool = True) -> tk.BooleanVar:
+                    var = tk.BooleanVar(value=enabled)
 
-                body = ttk.Frame(inner, style="Config.Card.TFrame")
-                body.pack(fill="x")
+                    def apply_state() -> None:
+                        on = var.get()
+                        for e in entries:
+                            try:
+                                e.configure(state=("normal" if on else "disabled"))
+                            except Exception:
+                                pass
 
-                def add_row(key: str = "", value: str = "") -> None:
-                    rf = ttk.Frame(body, style="Config.Card.TFrame")
-                    rf.pack(fill="x", pady=2)
-                    rf.columnconfigure(0, minsize=self._DUMMY_KEY_COL)
-                    rf.columnconfigure(1, weight=1)
-                    rf.columnconfigure(2, minsize=self._DUMMY_REMOVE_COL)
-                    kvar = tk.StringVar(value=key)
-                    vvar = tk.StringVar(value=value)
-                    ttk.Entry(rf, textvariable=kvar, style="Config.TEntry", font=FONT).grid(
-                        row=0, column=0, sticky="ew", padx=(0, 8))
-                    ttk.Entry(rf, textvariable=vvar, style="Config.TEntry", font=FONT).grid(
-                        row=0, column=1, sticky="ew")
-                    kvar.trace_add("write", refresh_preview)
-                    vvar.trace_add("write", refresh_preview)
-                    entry = (rf, kvar, vvar)
-                    rows.append(entry)
-
-                    def remove() -> None:
-                        if entry in rows:
-                            rows.remove(entry)
-                        rf.destroy()
+                    def on_change() -> None:
+                        apply_state()
+                        bulk["sync"]()
                         refresh_preview()
 
-                    remove_control(rf, 2, remove)
+                    ttk.Checkbutton(
+                        row_frame, variable=var, style="Custom.TCheckbutton",
+                        command=on_change, cursor="hand2", takefocus=False,
+                    ).grid(row=0, column=column, padx=(0, 6))
+                    apply_state()
+                    members.append({"var": var, "apply": apply_state})
+                    bulk["sync"]()
+                    return var
 
-                for k, v in initial.items():
-                    add_row(str(k), str(v))
+                def bulk_toggle(parent: tk.Widget) -> ttk.Checkbutton:
+                    bvar = tk.BooleanVar(value=True)
 
-                ttk.Button(inner, text="+ Add Field", style="Config.TButton",
-                           command=lambda: add_row(), cursor="hand2").pack(anchor="w", pady=(8, 0))
+                    def on_change() -> None:
+                        target = bvar.get()
+                        for m in members:
+                            m["var"].set(target)
+                            m["apply"]()
+                        refresh_preview()
 
-                def collect() -> dict[str, str]:
-                    out: dict[str, str] = {}
-                    for _, kvar, vvar in rows:
-                        key = kvar.get().strip()
-                        if key:
-                            out[key] = vvar.get()
-                    return out
+                    cb = ttk.Checkbutton(
+                        parent, variable=bvar, style="Custom.TCheckbutton",
+                        command=on_change, cursor="hand2", takefocus=False,
+                    )
 
-                return collect
+                    def sync() -> None:
+                        bvar.set(bool(members) and all(m["var"].get() for m in members))
 
-            # ---- Items table ----
-            def items_card(initial_items: list[dict[str, Any]]):
-                inner = section_card("Items", "name · price/unit · quantity")
-                rows: list[tuple[ttk.Frame, tk.StringVar, tk.StringVar, tk.StringVar]] = []
+                    bulk["sync"] = sync
+                    return cb
+
+                return toggle_row, bulk_toggle
+
+            # ---- Key/Value table (header_info / footer_info) ----
+            def kv_card(title: str, hint: str, initial: dict[str, Any]):
+                toggle_row, bulk_toggle = make_toggle_group()
+                inner = section_card(title, hint, add_bulk=bulk_toggle)
+                rows: list[tuple[tk.StringVar, tk.StringVar, tk.BooleanVar]] = []
 
                 hdr = ttk.Frame(inner, style="Config.Card.TFrame")
                 hdr.pack(fill="x", pady=(8, 2))
-                hdr.columnconfigure(0, weight=1)
-                hdr.columnconfigure(1, minsize=self._DUMMY_NUM_COL)
-                hdr.columnconfigure(2, minsize=self._DUMMY_NUM_COL)
+                hdr.columnconfigure(0, minsize=self._DUMMY_TOGGLE_COL)
+                hdr.columnconfigure(1, minsize=self._DUMMY_KEY_COL)
+                hdr.columnconfigure(2, weight=1)
                 hdr.columnconfigure(3, minsize=self._DUMMY_REMOVE_COL)
-                ttk.Label(hdr, text="NAME", style="Config.TLabel", foreground=NAV_TEXT,
-                          font=("Segoe UI", 8)).grid(row=0, column=0, sticky="w")
-                ttk.Label(hdr, text="AMOUNT", style="Config.TLabel", foreground=NAV_TEXT,
-                          font=("Segoe UI", 8)).grid(row=0, column=1, sticky="w", padx=(8, 0))
-                ttk.Label(hdr, text="QTY", style="Config.TLabel", foreground=NAV_TEXT,
-                          font=("Segoe UI", 8)).grid(row=0, column=2, sticky="w", padx=(8, 0))
+                ttk.Label(hdr, text="KEY", style="Config.TLabel", foreground=NAV_TEXT,
+                          font=("Segoe UI", 8)).grid(row=0, column=1, sticky="w")
+                ttk.Label(hdr, text="VALUE", style="Config.TLabel", foreground=NAV_TEXT,
+                          font=("Segoe UI", 8)).grid(row=0, column=2, sticky="w")
 
                 body = ttk.Frame(inner, style="Config.Card.TFrame")
                 body.pack(fill="x")
 
-                def add_item(name: str = "", amount: str = "", quantity: str = "") -> None:
+                def add_row(key: str = "", value: str = "", enabled: bool = True) -> None:
                     rf = ttk.Frame(body, style="Config.Card.TFrame")
                     rf.pack(fill="x", pady=2)
-                    rf.columnconfigure(0, weight=1)
-                    rf.columnconfigure(1, minsize=self._DUMMY_NUM_COL)
-                    rf.columnconfigure(2, minsize=self._DUMMY_NUM_COL)
+                    rf.columnconfigure(0, minsize=self._DUMMY_TOGGLE_COL)
+                    rf.columnconfigure(1, minsize=self._DUMMY_KEY_COL)
+                    rf.columnconfigure(2, weight=1)
                     rf.columnconfigure(3, minsize=self._DUMMY_REMOVE_COL)
-                    nvar = tk.StringVar(value=name)
-                    avar = tk.StringVar(value=amount)
-                    qvar = tk.StringVar(value=quantity)
-                    ttk.Entry(rf, textvariable=nvar, style="Config.TEntry", font=FONT).grid(
-                        row=0, column=0, sticky="ew")
-                    ttk.Entry(rf, textvariable=avar, style="Config.TEntry", font=FONT,
-                              justify="right").grid(row=0, column=1, sticky="ew", padx=(8, 0))
-                    ttk.Entry(rf, textvariable=qvar, style="Config.TEntry", font=FONT,
-                              justify="right").grid(row=0, column=2, sticky="ew", padx=(8, 0))
-                    nvar.trace_add("write", refresh_preview)
-                    avar.trace_add("write", refresh_preview)
-                    qvar.trace_add("write", refresh_preview)
-                    entry = (rf, nvar, avar, qvar)
+                    kvar = tk.StringVar(value=key)
+                    vvar = tk.StringVar(value=value)
+                    ke = ttk.Entry(rf, textvariable=kvar, style="Config.TEntry", font=FONT)
+                    ke.grid(row=0, column=1, sticky="ew", padx=(0, 8))
+                    ve = ttk.Entry(rf, textvariable=vvar, style="Config.TEntry", font=FONT)
+                    ve.grid(row=0, column=2, sticky="ew")
+                    kvar.trace_add("write", refresh_preview)
+                    vvar.trace_add("write", refresh_preview)
+                    en = toggle_row(rf, 0, (ke, ve), enabled)
+                    entry = (kvar, vvar, en)
                     rows.append(entry)
 
                     def remove() -> None:
@@ -657,6 +654,82 @@ class UI:
                         refresh_preview()
 
                     remove_control(rf, 3, remove)
+
+                for k, v in initial.items():
+                    add_row(str(k), str(v))
+
+                ttk.Button(inner, text="+ Add Field", style="Config.TButton",
+                           command=lambda: add_row(), cursor="hand2").pack(anchor="w", pady=(8, 0))
+
+                def collect() -> dict[str, str]:
+                    out: dict[str, str] = {}
+                    for kvar, vvar, en in rows:
+                        if not en.get():
+                            continue
+                        key = kvar.get().strip()
+                        if key:
+                            out[key] = vvar.get()
+                    return out
+
+                return collect
+
+            # ---- Items table ----
+            def items_card(initial_items: list[dict[str, Any]]):
+                toggle_row, bulk_toggle = make_toggle_group()
+                inner = section_card("Items", "name · price/unit · quantity", add_bulk=bulk_toggle)
+                rows: list[tuple[tk.StringVar, tk.StringVar, tk.StringVar, tk.BooleanVar]] = []
+
+                hdr = ttk.Frame(inner, style="Config.Card.TFrame")
+                hdr.pack(fill="x", pady=(8, 2))
+                hdr.columnconfigure(0, minsize=self._DUMMY_TOGGLE_COL)
+                hdr.columnconfigure(1, weight=1)
+                hdr.columnconfigure(2, minsize=self._DUMMY_NUM_COL)
+                hdr.columnconfigure(3, minsize=self._DUMMY_NUM_COL)
+                hdr.columnconfigure(4, minsize=self._DUMMY_REMOVE_COL)
+                ttk.Label(hdr, text="NAME", style="Config.TLabel", foreground=NAV_TEXT,
+                          font=("Segoe UI", 8)).grid(row=0, column=1, sticky="w")
+                ttk.Label(hdr, text="AMOUNT", style="Config.TLabel", foreground=NAV_TEXT,
+                          font=("Segoe UI", 8)).grid(row=0, column=2, sticky="w", padx=(8, 0))
+                ttk.Label(hdr, text="QTY", style="Config.TLabel", foreground=NAV_TEXT,
+                          font=("Segoe UI", 8)).grid(row=0, column=3, sticky="w", padx=(8, 0))
+
+                body = ttk.Frame(inner, style="Config.Card.TFrame")
+                body.pack(fill="x")
+
+                def add_item(name: str = "", amount: str = "", quantity: str = "",
+                             enabled: bool = True) -> None:
+                    rf = ttk.Frame(body, style="Config.Card.TFrame")
+                    rf.pack(fill="x", pady=2)
+                    rf.columnconfigure(0, minsize=self._DUMMY_TOGGLE_COL)
+                    rf.columnconfigure(1, weight=1)
+                    rf.columnconfigure(2, minsize=self._DUMMY_NUM_COL)
+                    rf.columnconfigure(3, minsize=self._DUMMY_NUM_COL)
+                    rf.columnconfigure(4, minsize=self._DUMMY_REMOVE_COL)
+                    nvar = tk.StringVar(value=name)
+                    avar = tk.StringVar(value=amount)
+                    qvar = tk.StringVar(value=quantity)
+                    ne = ttk.Entry(rf, textvariable=nvar, style="Config.TEntry", font=FONT)
+                    ne.grid(row=0, column=1, sticky="ew")
+                    ae = ttk.Entry(rf, textvariable=avar, style="Config.TEntry", font=FONT,
+                                   justify="right")
+                    ae.grid(row=0, column=2, sticky="ew", padx=(8, 0))
+                    qe = ttk.Entry(rf, textvariable=qvar, style="Config.TEntry", font=FONT,
+                                   justify="right")
+                    qe.grid(row=0, column=3, sticky="ew", padx=(8, 0))
+                    nvar.trace_add("write", refresh_preview)
+                    avar.trace_add("write", refresh_preview)
+                    qvar.trace_add("write", refresh_preview)
+                    en = toggle_row(rf, 0, (ne, ae, qe), enabled)
+                    entry = (nvar, avar, qvar, en)
+                    rows.append(entry)
+
+                    def remove() -> None:
+                        if entry in rows:
+                            rows.remove(entry)
+                        rf.destroy()
+                        refresh_preview()
+
+                    remove_control(rf, 4, remove)
 
                 for item in initial_items:
                     add_item(
@@ -670,7 +743,9 @@ class UI:
 
                 def collect() -> list[dict[str, str]]:
                     out: list[dict[str, str]] = []
-                    for _, nvar, avar, qvar in rows:
+                    for nvar, avar, qvar, en in rows:
+                        if not en.get():
+                            continue
                         name = nvar.get().strip()
                         if not name:
                             continue
@@ -685,27 +760,34 @@ class UI:
 
             # ---- Transaction info (fixed numeric keys) ----
             def transaction_card(initial: dict[str, Any]):
-                inner = section_card("Transaction Info", "leave blank to auto-calculate")
-                tvars: dict[str, tk.StringVar] = {}
+                toggle_row, bulk_toggle = make_toggle_group()
+                inner = section_card("Transaction Info", "leave blank to auto-calculate",
+                                     add_bulk=bulk_toggle)
+                tvars: dict[str, tuple[tk.StringVar, tk.BooleanVar]] = {}
                 body = ttk.Frame(inner, style="Config.Card.TFrame")
                 body.pack(fill="x", pady=(8, 0))
                 for key, label in (("received", "Received"), ("change", "Change"),
                                    ("discount", "Discount"), ("total", "Total")):
                     rf = ttk.Frame(body, style="Config.Card.TFrame")
                     rf.pack(fill="x", pady=2)
-                    rf.columnconfigure(0, minsize=self._DUMMY_KEY_COL)
-                    rf.columnconfigure(1, weight=1)
+                    rf.columnconfigure(0, minsize=self._DUMMY_TOGGLE_COL)
+                    rf.columnconfigure(1, minsize=self._DUMMY_KEY_COL)
+                    rf.columnconfigure(2, weight=1)
                     ttk.Label(rf, text=label, style="Config.TLabel", font=FONT).grid(
-                        row=0, column=0, sticky="w")
+                        row=0, column=1, sticky="w")
                     var = tk.StringVar(value=_num_str(initial.get(key)))
-                    ttk.Entry(rf, textvariable=var, style="Config.TEntry", font=FONT,
-                              justify="right").grid(row=0, column=1, sticky="ew")
+                    e = ttk.Entry(rf, textvariable=var, style="Config.TEntry", font=FONT,
+                                  justify="right")
+                    e.grid(row=0, column=2, sticky="ew")
                     var.trace_add("write", refresh_preview)
-                    tvars[key] = var
+                    en = toggle_row(rf, 0, (e,))
+                    tvars[key] = (var, en)
 
                 def collect() -> dict[str, str]:
                     out: dict[str, str] = {}
-                    for key, var in tvars.items():
+                    for key, (var, en) in tvars.items():
+                        if not en.get():
+                            continue
                         val = var.get().strip()
                         if val:
                             out[key] = val
@@ -715,27 +797,33 @@ class UI:
 
             # ---- Top-level receipt fields (rfid / info-title) ----
             def receipt_card(rfid_value: str, info_title_value: str):
-                inner = section_card("Receipt", "RFID (top-left) · info title (after header)")
-                fields: dict[str, tk.StringVar] = {}
+                toggle_row, bulk_toggle = make_toggle_group()
+                inner = section_card("Receipt", "RFID (top-left) · info title (after header)",
+                                     add_bulk=bulk_toggle)
+                fields: dict[str, tuple[tk.StringVar, tk.BooleanVar]] = {}
                 body = ttk.Frame(inner, style="Config.Card.TFrame")
                 body.pack(fill="x", pady=(8, 0))
                 for key, label, value in (("rfid", "RFID", rfid_value),
                                           ("info-title", "Info Title", info_title_value)):
                     rf = ttk.Frame(body, style="Config.Card.TFrame")
                     rf.pack(fill="x", pady=2)
-                    rf.columnconfigure(0, minsize=self._DUMMY_KEY_COL)
-                    rf.columnconfigure(1, weight=1)
+                    rf.columnconfigure(0, minsize=self._DUMMY_TOGGLE_COL)
+                    rf.columnconfigure(1, minsize=self._DUMMY_KEY_COL)
+                    rf.columnconfigure(2, weight=1)
                     ttk.Label(rf, text=label, style="Config.TLabel", font=FONT).grid(
-                        row=0, column=0, sticky="w")
+                        row=0, column=1, sticky="w")
                     var = tk.StringVar(value=value)
-                    ttk.Entry(rf, textvariable=var, style="Config.TEntry", font=FONT).grid(
-                        row=0, column=1, sticky="ew")
+                    e = ttk.Entry(rf, textvariable=var, style="Config.TEntry", font=FONT)
+                    e.grid(row=0, column=2, sticky="ew")
                     var.trace_add("write", refresh_preview)
-                    fields[key] = var
+                    en = toggle_row(rf, 0, (e,))
+                    fields[key] = (var, en)
 
                 def collect() -> dict[str, str]:
                     out: dict[str, str] = {}
-                    for key, var in fields.items():
+                    for key, (var, en) in fields.items():
+                        if not en.get():
+                            continue
                         if var.get().strip():
                             out[key] = var.get()
                     return out
@@ -959,6 +1047,14 @@ class UI:
 
         if (section, key) in CHOICE_FIELDS:
             self._build_choice_input(parent, section, key, var, row)
+            return
+
+        if (section, key) in PRINTER_SELECT_FIELDS:
+            self._build_printer_select(parent, section, key, row)
+            return
+
+        if (section, key) in PRINTER_PORT_FIELDS:
+            self._build_printer_port(parent, var, row)
             return
 
         if (section, key) in MULTILINE_FIELDS:
@@ -1340,6 +1436,163 @@ class UI:
 
         container.bind("<Configure>", on_resize)
 
+    def _build_printer_port(self, parent: tk.Widget, var: tk.Variable, row: int) -> None:
+        """Read-only USB port display; auto-populated from the selected printer."""
+
+        frame = ttk.Frame(parent, style="Config.Card.TFrame")
+        frame.grid(row=row, column=1, sticky="ew", pady=4, padx=(12, 0))
+        frame.columnconfigure(0, weight=1)
+
+        ttk.Entry(
+            frame,
+            textvariable=var,
+            style="Config.TEntry",
+            font=FONT,
+            state="readonly",
+            cursor="arrow",
+        ).grid(row=0, column=0, sticky="ew")
+
+        ttk.Label(
+            frame,
+            text="Auto-set from the selected printer",
+            style="Config.TLabel",
+            foreground=NAV_TEXT,
+            font=("Segoe UI", 8),
+        ).grid(row=1, column=0, sticky="w", pady=(2, 0))
+
+    def _build_printer_select(self, parent: tk.Widget, section: str, key: str, row: int) -> None:
+        """Dropdown of installed printers (auto-sets the USB port) plus a manual
+        add-printer panel with a connection test."""
+
+        name_var, _ = self._variables[(section, key)]
+        port_pair = self._variables.get((section, "usb_port"))
+        port_var = port_pair[0] if port_pair else None
+
+        container = ttk.Frame(parent, style="Config.Card.TFrame")
+        container.grid(row=row, column=1, sticky="ew", pady=4, padx=(12, 0))
+        container.columnconfigure(0, weight=1)
+
+        select_row = ttk.Frame(container, style="Config.Card.TFrame")
+        select_row.grid(row=0, column=0, sticky="ew")
+        select_row.columnconfigure(0, weight=1)
+
+        combo = ttk.Combobox(
+            select_row,
+            textvariable=name_var,
+            style="Config.TCombobox",
+            font=FONT,
+            state="readonly",
+        )
+        combo.grid(row=0, column=0, sticky="ew")
+
+        def refresh_list(select: Optional[str] = None) -> None:
+            names = [p["name"] for p in driver.list_printers()]
+            current = select if select is not None else name_var.get()
+            values = list(names)
+            # Keep a manual / currently-saved name selectable even when it is
+            # not an installed Windows queue.
+            if current and current not in values:
+                values.append(current)
+            combo.configure(values=values)
+            if select is not None:
+                name_var.set(select)
+
+        def on_select(_: tk.Event = None) -> None:
+            chosen = name_var.get()
+            port = driver.get_printer_port(chosen)
+            if port and port_var is not None:
+                port_var.set(port)
+            self._check_dirty()
+
+        combo.bind("<<ComboboxSelected>>", on_select)
+
+        ttk.Button(
+            select_row,
+            text="↻",
+            width=3,
+            style="Config.TButton",
+            command=lambda: refresh_list(),
+            cursor="hand2",
+        ).grid(row=0, column=1, padx=(8, 0))
+
+        # ---- Manual add (toggleable panel below the dropdown) ----
+        manual_holder = ttk.Frame(container, style="Config.Card.TFrame")
+        manual_holder.grid(row=1, column=0, sticky="ew", pady=(8, 0))
+        manual_holder.columnconfigure(0, weight=1)
+
+        add_link = ttk.Button(manual_holder, text="+ Add manually", style="Config.TButton", cursor="hand2")
+        add_link.grid(row=0, column=0, sticky="w")
+
+        panel = tk.Frame(
+            manual_holder, bg=CARD_BG, highlightthickness=1, highlightbackground=BORDER_COLOR, bd=0,
+        )
+        panel_state = {"open": False}
+
+        def build_panel() -> None:
+            for child in panel.winfo_children():
+                child.destroy()
+
+            inner = ttk.Frame(panel, style="Config.Card.TFrame")
+            inner.pack(fill="x", padx=12, pady=12)
+            inner.columnconfigure(1, weight=1)
+
+            ttk.Label(inner, text="Name", style="Config.TLabel").grid(row=0, column=0, sticky="w", pady=(0, 6))
+            m_name = tk.StringVar()
+            ttk.Entry(inner, textvariable=m_name, style="Config.TEntry", font=FONT).grid(
+                row=0, column=1, sticky="ew", padx=(8, 0), pady=(0, 6))
+
+            ttk.Label(inner, text="Port", style="Config.TLabel").grid(row=1, column=0, sticky="w", pady=(0, 6))
+            m_port = tk.StringVar(value="USB001")
+            ttk.Entry(inner, textvariable=m_port, style="Config.TEntry", font=FONT).grid(
+                row=1, column=1, sticky="ew", padx=(8, 0), pady=(0, 6))
+
+            status = ttk.Label(
+                inner, text="", style="Config.TLabel", font=("Segoe UI", 9),
+                wraplength=320, justify="left",
+            )
+            status.grid(row=2, column=0, columnspan=2, sticky="w", pady=(2, 8))
+
+            def do_test() -> None:
+                name = m_name.get().strip()
+                port = m_port.get().strip()
+                if not name:
+                    status.configure(text="Enter a printer name.", foreground="#c62828")
+                    return
+                ok, msg = driver.test_connection(name, port)
+                if not ok:
+                    status.configure(text=f"✗ {msg}", foreground="#c62828")
+                    return
+                # Success: set the printer and its port, then collapse.
+                if port_var is not None:
+                    resolved = port or driver.get_printer_port(name) or ""
+                    if resolved:
+                        port_var.set(resolved)
+                refresh_list(select=name)
+                self._check_dirty()
+                status.configure(text=f"✓ {msg} Printer set.", foreground="#2e7d32")
+
+            btnrow = ttk.Frame(inner, style="Config.Card.TFrame")
+            btnrow.grid(row=3, column=0, columnspan=2, sticky="w")
+            ttk.Button(btnrow, text="Test & set", style="Config.Primary.TButton",
+                       command=do_test, cursor="hand2").pack(side="left")
+            ttk.Button(btnrow, text="Cancel", style="Config.TButton",
+                       command=toggle_panel, cursor="hand2").pack(side="left", padx=(8, 0))
+
+        def toggle_panel() -> None:
+            if panel_state["open"]:
+                panel.grid_remove()
+                panel_state["open"] = False
+                add_link.configure(text="+ Add manually")
+            else:
+                build_panel()
+                panel.grid(row=1, column=0, sticky="ew", pady=(8, 0))
+                panel_state["open"] = True
+                add_link.configure(text="− Cancel manual add")
+
+        add_link.configure(command=toggle_panel)
+
+        refresh_list()
+
     def _build_navbar(self, parent: tk.Widget) -> None:
         for section in FIELD_SPECS:
             self._build_nav_button(parent, section)
@@ -1697,6 +1950,29 @@ class UI:
             padding=6,
         )
         style.map("Config.TEntry", bordercolor=[("focus", ACCENT)])
+        style.configure(
+            "Config.TCombobox",
+            font=FONT,
+            fieldbackground=FIELD_BG,
+            background=FIELD_BG,
+            foreground=TEXT_COLOR,
+            bordercolor=BORDER_COLOR,
+            arrowcolor=TEXT_COLOR,
+            padding=6,
+        )
+        style.map(
+            "Config.TCombobox",
+            fieldbackground=[("readonly", FIELD_BG)],
+            foreground=[("readonly", TEXT_COLOR)],
+            bordercolor=[("focus", ACCENT)],
+            arrowcolor=[("active", ACCENT)],
+        )
+        # Themed dropdown list (the popup uses the Tk option database, not ttk style).
+        self._root.option_add("*TCombobox*Listbox.background", FIELD_BG)
+        self._root.option_add("*TCombobox*Listbox.foreground", TEXT_COLOR)
+        self._root.option_add("*TCombobox*Listbox.selectBackground", ACCENT)
+        self._root.option_add("*TCombobox*Listbox.selectForeground", "#ffffff")
+        self._root.option_add("*TCombobox*Listbox.font", FONT)
         style.configure(
             "Config.TButton",
             font=FONT,

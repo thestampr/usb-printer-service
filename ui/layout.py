@@ -63,12 +63,12 @@ FIELD_SPECS: dict[str, list[FieldSpec]] = {
         entry("Volume Unit", "volume_unit"),
     ],
     "PRINTER": [
+        entry("Printer", "usb_name"),
         entry("USB Port", "usb_port"),
-        entry("USB Name", "usb_name"),
         entry("Encoding", "encoding"),
         choice("Paper Width", "paper_width"),
         separator(),
-        button("Download Printer Drivers", "open_driver_downloads_page", primary=True),
+        button("Get Drivers", "open_driver_downloads_page", primary=True),
     ],
     "SERVICE": [
         entry("Host", "host"),
@@ -127,6 +127,16 @@ CHOICE_FIELDS = {
     ("PRINTER", "paper_width"),
 }
 
+# Rendered as a dropdown of installed printers + a manual add panel.
+PRINTER_SELECT_FIELDS = {
+    ("PRINTER", "usb_name"),
+}
+
+# Rendered read-only; auto-populated from the selected printer.
+PRINTER_PORT_FIELDS = {
+    ("PRINTER", "usb_port"),
+}
+
 __all__ = [
     "FieldSpec",
     "FIELD_SPECS",
@@ -135,4 +145,6 @@ __all__ = [
     "IMAGE_FIELDS",
     "SCALE_FIELDS",
     "CHOICE_FIELDS",
+    "PRINTER_SELECT_FIELDS",
+    "PRINTER_PORT_FIELDS",
 ]

@@ -244,7 +244,7 @@ printer --config
 
 to adjust printer, layout, and service settings.
 
-- Printer queue name/port
+- Printer: pick an installed printer from the dropdown (its USB port is filled in automatically), or use **Add manually** to enter a name/port and test the connection before applying
 - Header/footer text and images (with file pickers)
 - Layout defaults (font size, currency, units)
 - Receipt locale: `receipt_locale` ("en" or "th") — controls the language used for receipt labels (e.g., Item, Qty, Total). You can change this from the Layout → Preview header in the configuration UI or via the CLI `--locale` flag; the CLI flag overrides the saved setting for that print job.
