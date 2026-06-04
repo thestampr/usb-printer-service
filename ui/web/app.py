@@ -24,7 +24,7 @@ import webview
 
 from config import settings
 from ui.theme import NAV_ACTIVE_TEXT, NAV_BG, WINDOW_BG, WINDOW_BORDER
-from ui.web import log_bridge, server_manager, tray as tray_mod
+from ui.web import log_bridge, server_manager, startup as app_startup, tray as tray_mod
 from ui.web.api import Api
 from ui.web.single_instance import ensure_single_instance
 from ui.web.tray import Tray
@@ -234,6 +234,12 @@ def launch(minimized: bool = False) -> None:
     """Open the config UI (single-instance) with in-process service + tray."""
     if not ensure_single_instance(WINDOW_TITLE):
         return
+
+    # Run-at-startup is on by default (opt-out); apply once per machine.
+    try:
+        app_startup.apply_default()
+    except Exception:
+        pass
 
     svc = settings.get_all().get("SERVICE", {})
     log_bridge.install(debug=bool(svc.get("debug", False)))

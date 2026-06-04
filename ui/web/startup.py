@@ -13,6 +13,11 @@ from pathlib import Path
 
 _RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 _VALUE_NAME = "PrinterReceiptService"
+# Our own key, used to remember that the "on by default" has been applied once so
+# we never re-enable after the user opts out. In the registry (not config/) so it
+# survives updates/re-installs.
+_APP_KEY = r"Software\PrinterReceiptService"
+_DEFAULT_MARK = "StartupDefaulted"
 _ROOT = Path(__file__).resolve().parents[2]
 _CLI = _ROOT / "printer_cli.py"
 
@@ -48,5 +53,37 @@ def disable() -> None:
             winreg.DeleteValue(key, _VALUE_NAME)
     except FileNotFoundError:
         pass
+    except OSError:
+        pass
+
+
+def _default_applied() -> bool:
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, _APP_KEY) as key:
+            winreg.QueryValueEx(key, _DEFAULT_MARK)
+            return True
+    except OSError:
+        return False
+
+
+def _mark_default_applied() -> None:
+    with winreg.CreateKey(winreg.HKEY_CURRENT_USER, _APP_KEY) as key:
+        winreg.SetValueEx(key, _DEFAULT_MARK, 0, winreg.REG_SZ, "1")
+
+
+def apply_default() -> None:
+    """Enable Run-at-startup the first time only (on by default, opt-out).
+
+    Runs once per machine; after the user toggles the setting their choice is
+    respected and this never re-enables it.
+    """
+    if _default_applied():
+        return
+    try:
+        enable()
+    except OSError:
+        pass
+    try:
+        _mark_default_applied()
     except OSError:
         pass
