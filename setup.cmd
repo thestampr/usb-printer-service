@@ -24,6 +24,13 @@ if not errorlevel 1 (
 )
 
 :do_setup
+set "VENV_PY=%REPO_ROOT%.venv\Scripts\python.exe"
+
+REM Reuse an existing virtual environment (update / repair): just refresh the
+REM dependencies into it. No virtualenv bootstrap needed.
+if exist "%VENV_PY%" goto :install_deps
+
+REM --- Create the virtual environment (fresh install) ---
 py --version >nul 2>&1
 if errorlevel 1 (
     echo [WARN] Python is not installed. Attempting to install Python 3.10+...
@@ -34,18 +41,12 @@ if errorlevel 1 (
     )
 )
 
-echo [INFO] Setting up virtual environment...
-python -m pip install --upgrade pip >nul
-python -m pip install --user virtualenv >nul || (
-    echo [ERROR] Could not install virtualenv module.
-    exit /b 1
-)
+echo [INFO] Creating virtual environment...
+REM Use the stdlib venv via the py launcher (a real interpreter, never an active
+REM venv) so we never need a fragile 'pip install --user virtualenv'.
+py -m venv "%REPO_ROOT%.venv" 2>nul || python -m venv "%REPO_ROOT%.venv" || goto :error
 
-if not exist "%REPO_ROOT%.venv" (
-    python -m virtualenv .venv || goto :error
-)
-
-set "VENV_PY=%REPO_ROOT%.venv\Scripts\python.exe"
+:install_deps
 if not exist "%VENV_PY%" (
     echo [ERROR] Virtual environment python not found at %VENV_PY%
     exit /b 1
