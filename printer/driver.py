@@ -108,7 +108,6 @@ class ReceiptPrinter:
     def __init__(self, config: Optional[dict] = None) -> None:
         self.config = config or PRINTER
         self.device = None
-        self.encoding = self.config.get("encoding", "utf-8")
         self.pixel_width = self.config.get("pixel_width", 384)
 
     def connect(self):

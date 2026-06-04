@@ -21,7 +21,6 @@ _DEFAULTS: Config = {
     "PRINTER": {
         "usb_port": "USB001",
         "usb_name": "XP-58",
-        "encoding": "utf-8",
         "paper_width": "58 mm",
         "line_width": 44,
         "pixel_width": 384

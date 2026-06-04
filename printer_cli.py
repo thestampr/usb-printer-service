@@ -16,7 +16,8 @@ from printer.driver import ReceiptPrinter
 from printer.renderer import generate_receipt_image
 from printer.template import validate_payload, apply_payload_images
 from server.app import create_app
-from ui.main import main as launch_ui, print_preview
+from ui.actions import print_preview
+from ui.web.app import launch_config
 from common.interface import PayloadInfo
 
 
@@ -91,7 +92,12 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--config",
         action="store_true",
-        help="Open the configuration UI and exit",
+        help="Open the configuration UI (runs in the system tray; returns immediately)",
+    )
+    parser.add_argument(
+        "--minimized",
+        action="store_true",
+        help="With --config, start hidden in the system tray (used by Run at startup)",
     )
     parser.add_argument(
         "--test",
@@ -234,7 +240,7 @@ def main() -> int:
     args = parse_arguments()
 
     if args.config:
-        launch_ui()
+        launch_config(minimized=args.minimized)
         return 0
 
     if args.update:

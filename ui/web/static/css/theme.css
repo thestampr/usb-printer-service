@@ -1,0 +1,25 @@
+/* Palette mirrored from ui/theme.py so the web UI keeps the brand look. */
+:root {
+  --window-bg: #f5f6fa;
+  --window-border: #3b426e;
+  --card-bg: #ffffff;
+  --nav-bg: #1f2432;
+  --accent: #5565ff;
+  --accent-hover: #6070fe;
+  --nav-text: #aeb4c8;
+  --nav-active-text: #ffffff;
+  --border-color: #e4e7f2;
+  --field-bg: #fbfbfe;
+  --text-color: #1b1d29;
+  --muted: #8a90a6;
+  --danger: #e0483d;
+  --success: #1ca672;
+
+  --font: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --scrollw: 12px;   /* form-pane scrollbar width; padding compensates for it */
+  --pad-x: 26px;     /* base horizontal content padding */
+  --header-h: 62px;  /* form section title + preview header share this height */
+  --radius: 10px;
+  --radius-sm: 7px;
+  --shadow-card: 0 1px 2px rgba(27, 29, 41, .04), 0 4px 16px rgba(27, 29, 41, .05);
+}

@@ -185,11 +185,6 @@ class Locale(ABC):
         pass
     @property
     @abstractmethod
-    def page_printer_encoding(self) -> str:
-        """Return the localized string for 'Encoding' setting."""
-        pass
-    @property
-    @abstractmethod
     def page_printer_linewidth(self) -> str:
         """Return the localized string for 'Line Width' setting."""
         pass

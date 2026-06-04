@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Printer Configuration</title>
+  <link rel="icon" type="image/png" href="../../../assets/icon.png" />
+  <link rel="stylesheet" href="css/theme.css" />
+  <link rel="stylesheet" href="css/app.css" />
+</head>
+<body>
+  <!-- Startup splash: covers the window until init() wires the UI, then fades out. -->
+  <div id="splash" class="splash">
+    <div class="splash-inner">
+      <div class="splash-logo">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M6 9V2h12v7 M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2 M6 14h12v8H6z" />
+        </svg>
+      </div>
+      <div class="splash-title">Printer Service</div>
+      <div class="splash-spinner"></div>
+    </div>
+  </div>
+
+  <div class="app">
+    <aside class="nav">
+      <nav class="nav-items" id="nav-items">
+        <button class="nav-item" data-section="LAYOUT">Layout</button>
+        <button class="nav-item" data-section="PRINTER">Printer</button>
+        <button class="nav-item" data-section="SERVICE">Service</button>
+        <button class="nav-item" data-section="DUMMY">Dummy</button>
+        <button class="nav-item" data-section="SETTINGS">Settings</button>
+      </nav>
+      <div class="nav-spacer"></div>
+      <button class="nav-update" id="update-btn" data-icon="refresh">Check for Updates</button>
+      <div class="nav-divider"></div>
+      <div class="link-row">
+        <button class="nav-link" id="link-docs">Docs</button>
+        <span class="nav-dot">•</span>
+        <button class="nav-link" id="link-github">Github</button>
+      </div>
+      <div class="nav-version" id="nav-version"></div>
+    </aside>
+
+    <main class="content">
+      <div class="content-body">
+        <div class="form-col">
+          <div class="section-header">
+            <h1 class="section-title" id="section-title">Layout</h1>
+            <div class="header-actions" id="dummy-actions" hidden>
+              <button class="btn small" id="dummy-reload" data-icon="refresh">Reload from File</button>
+              <button class="btn small danger" id="dummy-reset" data-icon="reset">Reset to Default</button>
+            </div>
+          </div>
+          <div class="form-pane" id="form-pane">
+
+            <!-- ===== LAYOUT ===== -->
+            <section class="form-section" data-section="LAYOUT">
+              <div class="card">
+                <div class="field">
+                  <label class="field-label">Header Image</label>
+                  <div class="field-control">
+                    <div class="image-field" data-image="header_image">
+                      <div class="image-thumb empty">No image</div>
+                      <div class="image-meta">
+                        <div class="image-btns">
+                          <button class="btn small" data-act="browse" data-icon="folder">Browse</button>
+                          <button class="btn small danger" data-act="clear" data-icon="trash">Clear</button>
+                        </div>
+                        <div class="image-scale">
+                          <div class="field-hint">Scale (% of width)</div>
+                          <div class="slider-row">
+                            <input type="range" data-key="header_image_scale" data-type="int" data-unit="%" min="0" max="100" step="1" />
+                            <span class="slider-value"></span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Header Title</label>
+                  <div class="field-control"><textarea data-key="header_title" rows="3"></textarea></div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Header Description</label>
+                  <div class="field-control"><textarea data-key="header_description" rows="3"></textarea></div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Receipt Title</label>
+                  <div class="field-control"><textarea data-key="receipt_title" rows="3"></textarea></div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Footer Label</label>
+                  <div class="field-control"><textarea data-key="footer_label" rows="3"></textarea></div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Footer Image</label>
+                  <div class="field-control">
+                    <div class="image-field" data-image="footer_image">
+                      <div class="image-thumb empty">No image</div>
+                      <div class="image-meta">
+                        <div class="image-btns">
+                          <button class="btn small" data-act="browse" data-icon="folder">Browse</button>
+                          <button class="btn small danger" data-act="clear" data-icon="trash">Clear</button>
+                        </div>
+                        <div class="image-scale">
+                          <div class="field-hint">Scale (% of width)</div>
+                          <div class="slider-row">
+                            <input type="range" data-key="footer_image_scale" data-type="int" data-unit="%" min="0" max="100" step="1" />
+                            <span class="slider-value"></span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="section-sep"><h3>Advanced</h3><div class="rule"></div></div>
+
+                <div class="field">
+                  <label class="field-label">Font Family</label>
+                  <div class="field-control"><input type="text" data-key="font_family" /></div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Font Path</label>
+                  <div class="field-control">
+                    <div class="file-row" data-filepicker="font_path">
+                      <input type="text" data-key="font_path" readonly />
+                      <button class="btn small" data-act="browse" data-icon="folder">Browse</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Font Size</label>
+                  <div class="field-control">
+                    <div class="slider-row">
+                      <input type="range" data-key="font_size" data-type="int" min="8" max="80" step="1" />
+                      <span class="slider-value"></span>
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Small Font Size</label>
+                  <div class="field-control">
+                    <div class="slider-row">
+                      <input type="range" data-key="font_size_small" data-type="int" min="8" max="80" step="1" />
+                      <span class="slider-value"></span>
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Line Spacing</label>
+                  <div class="field-control">
+                    <div class="slider-row">
+                      <input type="range" data-key="line_spacing" data-type="int" min="0" max="100" step="1" />
+                      <span class="slider-value"></span>
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Currency</label>
+                  <div class="field-control"><input type="text" data-key="currency" /></div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Volume Unit</label>
+                  <div class="field-control"><input type="text" data-key="volume_unit" /></div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ===== PRINTER ===== -->
+            <section class="form-section" data-section="PRINTER" hidden>
+              <div class="card">
+                <div class="field">
+                  <label class="field-label">Printer</label>
+                  <div class="field-control">
+                    <div class="printer-select">
+                      <div class="printer-row">
+                        <select data-key="usb_name" id="printer-select"></select>
+                        <button class="btn icon" data-act="printer-refresh" data-icon="refresh" title="Refresh list"></button>
+                        <button class="btn ghost" data-act="printer-add">+ Add manually</button>
+                      </div>
+                      <div class="manual-panel" id="manual-panel" hidden>
+                        <div class="manual-field"><label>Name</label><input type="text" id="manual-name" placeholder="Printer name" /></div>
+                        <div class="manual-field"><label>Port</label><input type="text" id="manual-port" value="USB001" placeholder="Port" /></div>
+                        <div class="field-hint" id="manual-status" style="margin:4px 0 8px"></div>
+                        <div class="manual-btns">
+                          <button class="btn small primary" id="manual-test" data-icon="check">Test &amp; set</button>
+                          <button class="btn small" id="manual-cancel" data-icon="undo">Cancel</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field-label">USB Port</label>
+                  <div class="field-control">
+                    <input type="text" data-key="usb_port" readonly />
+                    <div class="field-hint">Auto-set from the selected printer</div>
+                  </div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Paper Width</label>
+                  <div class="field-control">
+                    <div class="segmented" data-key="paper_width">
+                      <button type="button" data-value="58 mm">58 mm</button>
+                      <button type="button" data-value="80 mm">80 mm</button>
+                    </div>
+                  </div>
+                </div>
+                <div class="spacer"></div>
+                <div class="field-block" style="padding:8px 0">
+                  <button class="btn primary" data-act="open-drivers" data-icon="download">Get Drivers</button>
+                </div>
+              </div>
+            </section>
+
+            <!-- ===== SERVICE ===== -->
+            <section class="form-section service-fill" data-section="SERVICE" hidden>
+              <div class="card">
+                <div class="field">
+                  <label class="field-label">Host</label>
+                  <div class="field-control"><input type="text" data-key="host" /></div>
+                </div>
+                <div class="field">
+                  <label class="field-label">Port</label>
+                  <div class="field-control"><input type="text" data-key="port" data-type="int" /></div>
+                </div>
+                <div class="field-block" style="padding:10px 0">
+                  <label class="switch">
+                    <input type="checkbox" data-key="debug" />
+                    <span class="track"></span>
+                    <span>Debug Mode</span>
+                  </label>
+                </div>
+                <div class="service-run">
+                  <button class="btn primary" id="service-toggle" data-icon="play">Run Service</button>
+                  <span class="service-state" id="service-state">
+                    <span class="state-dot"></span><span class="state-text">Stopped</span>
+                  </span>
+                </div>
+              </div>
+
+              <div class="console">
+                <div class="console-bar">
+                  <span class="console-title">Service Log</span>
+                  <button class="btn small ghost" id="console-clear" data-icon="trash">Clear</button>
+                </div>
+                <div class="console-body" id="service-console">
+                  <div class="console-empty">Service is not running. Press <b>Run Service</b> to start it — it keeps serving from the system tray when you close this window.</div>
+                </div>
+              </div>
+            </section>
+
+            <!-- ===== DUMMY ===== -->
+            <section class="form-section" data-section="DUMMY" hidden>
+              <p class="field-hint dummy-intro">
+                Edit the example payload used for the live preview and the Print Test button.
+                Disabled rows are excluded. Saved to config/temp.dummy.json on Save.
+              </p>
+              <div id="dummy-editor"></div>
+            </section>
+
+            <!-- ===== SETTINGS (app) ===== -->
+            <section class="form-section" data-section="SETTINGS" hidden>
+              <div class="card">
+                <div class="field-block" style="padding:10px 0">
+                  <label class="switch">
+                    <input type="checkbox" id="run-at-startup" />
+                    <span class="track"></span>
+                    <span>Run at startup</span>
+                  </label>
+                  <div class="field-hint">
+                    Launch the printer service automatically when you sign in to Windows.
+                    It starts minimized in the system tray.
+                  </div>
+                </div>
+              </div>
+            </section>
+
+          </div>
+        </div>
+
+        <div class="preview-pane" id="preview-pane">
+          <div class="preview-toolbar">
+            <div class="preview-title">Preview</div>
+            <div class="segmented" id="locale-toggle">
+              <button type="button" data-value="en">English</button>
+              <button type="button" data-value="th">ภาษาไทย</button>
+            </div>
+          </div>
+          <div class="preview-scroll">
+            <div class="preview-img-wrap" id="preview-img-wrap">
+              <div class="preview-empty">Loading…</div>
+            </div>
+          </div>
+          <div class="preview-actions">
+            <button class="btn primary" id="print-test-btn" data-icon="printer">Print Test</button>
+          </div>
+        </div>
+      </div>
+
+      <footer class="content-footer">
+        <button class="btn danger" id="reset-btn" data-icon="reset">Reset Default</button>
+        <div class="footer-right">
+          <button class="btn" id="cancel-btn" data-icon="undo" disabled>Cancel</button>
+          <button class="btn primary" id="save-btn" data-icon="save" disabled>Save</button>
+        </div>
+      </footer>
+    </main>
+  </div>
+
+  <!-- ===== Templates for the dynamic dummy editor ===== -->
+  <template id="tpl-dummy-card">
+    <div class="card dummy-card">
+      <div class="dummy-card-head">
+        <input type="checkbox" class="dummy-check" data-bulk title="Toggle all" />
+        <span class="dummy-card-title"></span>
+        <span class="dummy-card-hint"></span>
+      </div>
+    </div>
+  </template>
+  <template id="tpl-kv-head">
+    <div class="dummy-row kv-row dummy-head-row"><span></span><span>KEY</span><span>VALUE</span><span></span></div>
+  </template>
+  <template id="tpl-kv-row">
+    <div class="dummy-row kv-row">
+      <input type="checkbox" class="dummy-check" />
+      <input type="text" data-cell="key" placeholder="Key" />
+      <input type="text" data-cell="value" placeholder="Value" />
+      <span class="dummy-remove" title="Remove">✕</span>
+    </div>
+  </template>
+  <template id="tpl-item-head">
+    <div class="dummy-row item-row dummy-head-row"><span></span><span>NAME</span><span>AMOUNT</span><span>QTY</span><span></span></div>
+  </template>
+  <template id="tpl-item-row">
+    <div class="dummy-row item-row">
+      <input type="checkbox" class="dummy-check" />
+      <input type="text" data-cell="name" placeholder="Item name" />
+      <input type="text" class="num" data-cell="amount" placeholder="0.00" />
+      <input type="text" class="num" data-cell="quantity" placeholder="0" />
+      <span class="dummy-remove" title="Remove">✕</span>
+    </div>
+  </template>
+  <template id="tpl-fixed-row">
+    <div class="dummy-row fixed-row">
+      <input type="checkbox" class="dummy-check" />
+      <span class="fixed-label"></span>
+      <input type="text" data-cell="value" />
+    </div>
+  </template>
+
+  <script src="js/bridge.js"></script>
+  <script src="js/dom.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/binding.js"></script>
+  <script src="js/printer.js"></script>
+  <script src="js/preview.js"></script>
+  <script src="js/dummy.js"></script>
+  <script src="js/service.js"></script>
+  <script src="js/appsettings.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

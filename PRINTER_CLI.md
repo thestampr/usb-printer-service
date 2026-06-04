@@ -45,7 +45,7 @@ printer --payload <JSON string|path> [options]
 | `--footer-image-scale` | Override footer image scale as a percent of width (`0`–`100`). |
 | `--port` | Override printer queue in `PORT:NAME` form, e.g. `USB001:"XP-58 (copy 1)"`. |
 | `--paper-width` | Override paper width in mm: `58` or `80`. Sets the matching line/pixel width for this print. |
-| `--config` | Launch the Tkinter configuration UI and exit without printing. |
+| `--config` | Launch the configuration UI (native window) and exit without printing. |
 | `--test` | Print a test page with dummy data to verify printer setup and auto-calculation. |
 | `--serve` | Run the Flask API server (optionally specify host:port). |
 | `--update` | Check for a newer version on GitHub and install it if available (prompts for confirmation). |

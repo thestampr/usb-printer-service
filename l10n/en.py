@@ -108,9 +108,6 @@ class LocaleEN(Locale):
     def page_printer_usbname(self) -> str:
         return "USB Name"
     @property
-    def page_printer_encoding(self) -> str:
-        return "Encoding"
-    @property
     def page_printer_linewidth(self) -> str:
         return "Line Width"
     @property

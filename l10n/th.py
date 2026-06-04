@@ -108,9 +108,6 @@ class LocaleTH(Locale):
     def page_printer_usbname(self) -> str:
         return "ชื่อ USB"
     @property
-    def page_printer_encoding(self) -> str:
-        return "การเข้ารหัส"
-    @property
     def page_printer_linewidth(self) -> str:
         return "ความกว้างบรรทัด"
     @property

@@ -65,7 +65,6 @@ FIELD_SPECS: dict[str, list[FieldSpec]] = {
     "PRINTER": [
         entry("Printer", "usb_name"),
         entry("USB Port", "usb_port"),
-        entry("Encoding", "encoding"),
         choice("Paper Width", "paper_width"),
         separator(),
         button("Get Drivers", "open_driver_downloads_page", primary=True),

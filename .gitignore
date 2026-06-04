@@ -41,6 +41,12 @@ temp.*
 # Dummy preview payload saved from the config UI's Dummy panel
 config/temp.dummy.json
 
+# Persisted config-UI window geometry (restored on next launch)
+config/temp.window.json
+
+# Legacy Tkinter UI kept locally for reference (replaced by ui/web in v2.0.0)
+_legacy/
+
 # Test
 test*
 
