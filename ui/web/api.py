@@ -253,7 +253,8 @@ class Api:
 
     def run_update(self) -> dict[str, Any]:
         try:
-            updater.launch_updater("none")
+            # "ui": the updater reopens the config window once files are replaced.
+            updater.launch_updater("ui")
             # The updater waits for this process to exit before replacing files,
             # but closing the window only hides to the tray — so force a full quit.
             # Brief delay lets the JS response/toast render first.
