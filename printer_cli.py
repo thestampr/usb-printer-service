@@ -76,8 +76,8 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--locale",
         choices=["en", "th"],
-        default="en",
-        help="Locale for receipt text (default: en)"
+        default=None,
+        help="Locale for receipt text (default: the configured Layout receipt_locale, else en)",
     )
     parser.add_argument(
         "--port",
@@ -258,7 +258,10 @@ def main() -> int:
         app.run(host=host, port=port, debug=debug)
         return 0
     
-    locale = LocaleTH() if args.locale == "th" else LocaleEN()
+    # Default to the configured receipt locale (Layout -> receipt_locale), matching
+    # the /print server, unless the caller explicitly passes --locale.
+    locale_code = args.locale or settings.LAYOUT.get("receipt_locale", "en")
+    locale = LocaleTH() if locale_code == "th" else LocaleEN()
     if args.test:
         try:
             print_preview()
