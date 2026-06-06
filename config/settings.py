@@ -7,7 +7,8 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
-type Config = dict[str, dict[str, Any]]
+# Plain alias (not the 3.12+ `type` statement) so this runs on Python 3.10+.
+Config = dict[str, dict[str, Any]]
 
 _CONFIG_FILE = Path(__file__).with_name("temp.settings.json")
 
