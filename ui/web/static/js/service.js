@@ -76,6 +76,8 @@ window.App = window.App || {};
 
   function setRunning(state, info) {
     running = !!state;
+    const navBtn = document.getElementById('nav-service');
+    if (navBtn) navBtn.classList.toggle('service-on', running);
     clear(toggleBtn);
     toggleBtn.append(icon(running ? 'stop' : 'play'));
     toggleBtn.append(document.createTextNode(running ? 'Stop Service' : 'Run Service'));

@@ -31,6 +31,11 @@ from ui.web.tray import Tray
 
 WINDOW_TITLE = "Printer Configuration"
 
+# Taskbar identity. Explorer caches the name/icon per AppID, so bump this string
+# if you change _APP_NAME or the icon.
+_APP_ID = "TRS.ReceiptPrinterService.1"
+_APP_NAME = "Printer Service"
+
 _ROOT = Path(__file__).resolve().parents[2]
 _INDEX = os.path.join(os.path.dirname(__file__), "static", "index.html")
 _ICON = _ROOT / "assets" / "icon.ico"
@@ -156,6 +161,134 @@ def place_window(hwnd: int) -> None:
     user32.SetWindowPos(hwnd, 0, x, y, w, h, 0x0004)  # SWP_NOZORDER (move + size)
 
 
+def _register_app_id() -> None:
+    """Register our AppUserModelID's display name + icon in the registry."""
+    try:
+        import winreg
+        key = winreg.CreateKey(
+            winreg.HKEY_CURRENT_USER, r"Software\Classes\AppUserModelId" + "\\" + _APP_ID)
+        winreg.SetValueEx(key, "FriendlyName", 0, winreg.REG_SZ, _APP_NAME)
+        if _ICON.exists():
+            winreg.SetValueEx(key, "IconResource", 0, winreg.REG_SZ, f"{_ICON},0")
+        winreg.CloseKey(key)
+    except Exception:
+        pass
+
+
+def _ensure_start_menu_shortcut() -> None:
+    """Create a Start Menu shortcut carrying our AppID. The Win11 taskbar names
+    a window's button from the matching shortcut, else falls back to pythonw.exe."""
+    try:
+        import pythoncom
+        from win32com.shell import shell
+        from win32com.propsys import propsys, pscon
+
+        start_dir = os.path.join(
+            os.environ["APPDATA"], r"Microsoft\Windows\Start Menu\Programs")
+        lnk = os.path.join(start_dir, _APP_NAME + ".lnk")
+
+        try:
+            pythoncom.CoInitialize()
+        except Exception:
+            pass
+
+        def _make_link():
+            return pythoncom.CoCreateInstance(
+                shell.CLSID_ShellLink, None, pythoncom.CLSCTX_INPROC_SERVER,
+                shell.IID_IShellLink)
+
+        # Skip if a shortcut with the current AppID is already there.
+        if os.path.exists(lnk):
+            try:
+                existing = _make_link()
+                existing.QueryInterface(pythoncom.IID_IPersistFile).Load(lnk)
+                cur = existing.QueryInterface(propsys.IID_IPropertyStore) \
+                    .GetValue(pscon.PKEY_AppUserModel_ID).GetValue()
+                if cur == _APP_ID:
+                    return
+            except Exception:
+                pass
+
+        if getattr(sys, "frozen", False):
+            target, args = sys.executable, "--config"
+        else:
+            pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+            target = pyw if os.path.exists(pyw) else sys.executable
+            args = '"%s" --config' % _CLI
+
+        link = _make_link()
+        link.SetPath(target)
+        link.SetArguments(args)
+        if _ICON.exists():
+            link.SetIconLocation(str(_ICON), 0)
+        link.SetWorkingDirectory(str(_ROOT))
+        link.SetDescription(_APP_NAME)
+        store = link.QueryInterface(propsys.IID_IPropertyStore)
+        store.SetValue(pscon.PKEY_AppUserModel_ID, propsys.PROPVARIANTType(_APP_ID))
+        store.Commit()
+        link.QueryInterface(pythoncom.IID_IPersistFile).Save(lnk, True)
+    except Exception:
+        pass
+
+
+def _set_window_appid(hwnd: int) -> None:
+    """Set the window's AppID property (the process-wide AppID doesn't stick to
+    pywebview's window). Done before the window is shown."""
+    try:
+        c = ctypes
+
+        class GUID(c.Structure):
+            _fields_ = [("d1", c.c_uint32), ("d2", c.c_uint16),
+                        ("d3", c.c_uint16), ("d4", c.c_ubyte * 8)]
+
+        class PROPERTYKEY(c.Structure):
+            _fields_ = [("fmtid", GUID), ("pid", c.c_uint32)]
+
+        class PROPVARIANT(c.Structure):
+            _fields_ = [("vt", c.c_ushort), ("r1", c.c_ushort), ("r2", c.c_ushort),
+                        ("r3", c.c_ushort), ("p1", c.c_void_p), ("p2", c.c_void_p)]
+
+        def _guid(d1, d2, d3, rest):
+            return GUID(d1, d2, d3, (c.c_ubyte * 8)(*rest))
+
+        # IID_IPropertyStore and PKEY_AppUserModel_ID.
+        iid_store = _guid(0x886D8EEB, 0x8CF2, 0x4446,
+                          (0x8D, 0x02, 0xCD, 0xBA, 0x1D, 0xBD, 0xCF, 0x99))
+        pkey = PROPERTYKEY(_guid(0x9F4C2855, 0x9F79, 0x4B39,
+                                 (0xA8, 0xD0, 0xE1, 0xD4, 0x2D, 0xE1, 0xD5, 0xF3)), 5)
+
+        try:
+            c.windll.ole32.CoInitialize(None)
+        except Exception:
+            pass
+        sh = c.windll.shell32
+        sh.SHGetPropertyStoreForWindow.argtypes = [
+            c.c_void_p, c.POINTER(GUID), c.POINTER(c.c_void_p)]
+        store = c.c_void_p()
+        if sh.SHGetPropertyStoreForWindow(hwnd, c.byref(iid_store), c.byref(store)) != 0 or not store:
+            return
+        ole32 = c.windll.ole32
+        ole32.CoTaskMemAlloc.restype = c.c_void_p
+        ole32.CoTaskMemAlloc.argtypes = [c.c_size_t]
+        nbytes = (len(_APP_ID) + 1) * 2
+        mem = ole32.CoTaskMemAlloc(nbytes)
+        c.memmove(mem, c.create_unicode_buffer(_APP_ID), nbytes)
+        pv = PROPVARIANT()
+        pv.vt = 31  # VT_LPWSTR
+        pv.p1 = mem
+        vtbl = c.cast(store, c.POINTER(c.c_void_p))[0]
+        slots = c.cast(vtbl, c.POINTER(c.c_void_p))
+        p_setvalue = c.WINFUNCTYPE(
+            c.c_long, c.c_void_p, c.POINTER(PROPERTYKEY), c.POINTER(PROPVARIANT))
+        p_void = c.WINFUNCTYPE(c.c_long, c.c_void_p)
+        p_setvalue(slots[6])(store, c.byref(pkey), c.byref(pv))  # IPropertyStore::SetValue
+        p_void(slots[7])(store)                                  # ::Commit
+        ole32.PropVariantClear(c.byref(pv))
+        p_void(slots[2])(store)                                  # ::Release
+    except Exception:
+        pass
+
+
 def _set_window_icon(hwnd: int) -> None:
     """Set the title-bar + taskbar icon from assets/icon.ico."""
     if not _ICON.exists():
@@ -194,6 +327,7 @@ def _apply_titlebar_theme(window=None) -> None:
         set_attr(_DWMWA_BORDER_COLOR, _colorref(WINDOW_BORDER))
         set_attr(_DWMWA_WINDOW_CORNER_PREFERENCE, _DWMWCP_ROUND)
         _set_window_icon(hwnd)
+        _set_window_appid(hwnd)
     except Exception:
         pass
 
@@ -234,6 +368,14 @@ def launch(minimized: bool = False) -> None:
     """Open the config UI (single-instance) with in-process service + tray."""
     if not ensure_single_instance(WINDOW_TITLE):
         return
+
+    # Claim our taskbar identity (name + icon) before the window is created.
+    _register_app_id()
+    _ensure_start_menu_shortcut()
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(_APP_ID)
+    except Exception:
+        pass
 
     # Run-at-startup is on by default (opt-out); apply once per machine.
     try:
@@ -336,6 +478,14 @@ def launch(minimized: bool = False) -> None:
             pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
             runner = pyw if os.path.exists(pyw) else sys.executable
             relaunch = [runner, str(_CLI), "--config"]
+        # Preserve visibility: if we're sleeping in the tray (window hidden), come
+        # back silently into the tray instead of popping the window open.
+        user32 = ctypes.windll.user32
+        user32.FindWindowW.restype = ctypes.c_void_p
+        user32.IsWindowVisible.argtypes = [ctypes.c_void_p]
+        _hwnd = user32.FindWindowW(None, WINDOW_TITLE)
+        if not (_hwnd and user32.IsWindowVisible(_hwnd)):
+            relaunch.append("--minimized")
         waiter = (
             "import ctypes,subprocess\n"
             "k=ctypes.windll.kernel32\n"
@@ -386,6 +536,11 @@ def launch(minimized: bool = False) -> None:
     def _finalize() -> bool:
         """Tear down service + tray so the GUI loop can end. GUI thread."""
         state["force_quit"] = True
+        # Detach the webview sinks first: stopping the service calls evaluate_js
+        # (log sink + on_change), which deadlocks the close if run while the
+        # window is tearing down (hangs Quit/Restart with the service running).
+        log_bridge.set_sink(None)
+        server_manager.manager.on_change = None
         _hwnd = ctypes.windll.user32.FindWindowW(None, WINDOW_TITLE)
         if _hwnd:
             save_geometry(_hwnd)

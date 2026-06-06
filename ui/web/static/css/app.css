@@ -71,9 +71,25 @@ button { font-family: inherit; }
   cursor: pointer;
   font-size: 14px;
   transition: background .12s, color .12s;
+  display: flex;
+  align-items: center;
 }
 .nav-item:hover { background: rgba(255, 255, 255, .06); color: var(--nav-active-text); }
 .nav-item.active { background: var(--accent); color: var(--nav-active-text); font-weight: 600; }
+
+/* Service status dot: green only while the service is running. */
+.nav-status-dot {
+  margin-left: auto;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #37cd52;
+  box-shadow: 0 0 5px rgba(55, 205, 82, .7);
+  opacity: 0;
+  transition: opacity .15s;
+}
+.nav-item.service-on .nav-status-dot { opacity: 1; }
 
 .link-row { display: flex; gap: 8px; justify-content: center; align-items: center; padding: 4px 0 2px; }
 .nav-link {
@@ -88,6 +104,7 @@ button { font-family: inherit; }
   color: var(--nav-text); border-radius: var(--radius-sm); padding: 8px 12px;
   cursor: pointer; font-size: 13px; transition: background .12s, color .12s;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  margin-top: 9px;  /* gap above, matching the divider's spacing */
 }
 .nav-update:hover { background: rgba(255,255,255,.08); color: var(--nav-active-text); }
 
