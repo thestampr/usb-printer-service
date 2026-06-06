@@ -12,6 +12,7 @@ simple getters return their data directly.
 from __future__ import annotations
 
 import base64
+import threading
 from io import BytesIO
 from typing import Any, Callable, Optional
 
@@ -253,6 +254,13 @@ class Api:
     def run_update(self) -> dict[str, Any]:
         try:
             updater.launch_updater("none")
+            # The updater waits for this process to exit before replacing files,
+            # but closing the window only hides to the tray — so force a full quit.
+            # Brief delay lets the JS response/toast render first.
+            if self._quit_cb:
+                t = threading.Timer(0.6, lambda: self._quit_cb(True))
+                t.daemon = True
+                t.start()
             return {"ok": True}
         except Exception as exc:
             return {"ok": False, "error": str(exc)}
