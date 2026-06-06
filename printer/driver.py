@@ -139,12 +139,16 @@ class ReceiptPrinter:
             return
 
         device = self.connect()
+        # Label for error logs, valid for both branches below (a bare image_path
+        # would be unbound here when a PIL image is passed -> UnboundLocalError).
+        source = "receipt image"
 
         if isinstance(path, Image.Image):
             pil_image = path
             LOGGER.debug("Printing PIL Image object (scale=%s%%)", scale)
         else:
             image_path = get_real_path(path)
+            source = str(image_path)
             if not image_path.exists():
                 LOGGER.warning("Header image %s not found; skipping", path)
                 return
@@ -169,8 +173,8 @@ class ReceiptPrinter:
         try:
             device.image(processed, impl="bitImageColumn")
         except Exception as exc:
-            LOGGER.error("Failed to print processed image %s: %s", image_path, exc)
-            raise RuntimeError("Failed to print header image") from exc
+            LOGGER.error("Failed to print processed image %s: %s", source, exc)
+            raise RuntimeError("Failed to print receipt image") from exc
 
     def cut(self) -> None:
         device = self.connect()
