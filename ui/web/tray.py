@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import ctypes
 import threading
+from ctypes import wintypes
+from pathlib import Path
 from typing import Callable, Dict, Optional
 
 import win32api
@@ -18,6 +20,7 @@ import win32con
 import win32gui
 
 _TRAY_CLASS = "PrinterServiceTrayWnd"
+_ICON_DIR = Path(__file__).resolve().parents[2] / "assets" / "tray"
 
 # Tray callback message + marshaling messages handled on the tray thread.
 _WM_TRAY = win32con.WM_USER + 20
@@ -49,10 +52,73 @@ def signal_show() -> bool:
 
 # Menu command ids.
 _ID_OPEN = 1
-_ID_RESTART = 2
+_ID_START = 2
 _ID_STOP = 3
-_ID_QUIT = 4
-_CMD_TO_ACTION = {_ID_OPEN: "open", _ID_RESTART: "restart", _ID_STOP: "stop", _ID_QUIT: "quit"}
+_ID_RESTART_SVC = 4
+_ID_CHECK_UPDATE = 5
+_ID_RESTART_APP = 6
+_ID_QUIT = 7
+_CMD_TO_ACTION = {
+    _ID_OPEN: "open",
+    _ID_START: "start",
+    _ID_STOP: "stop",
+    _ID_RESTART_SVC: "restart",
+    _ID_CHECK_UPDATE: "check_update",
+    _ID_RESTART_APP: "restart_app",
+    _ID_QUIT: "quit",
+}
+
+_MIIM_BITMAP = 0x00000080
+
+
+class _MENUITEMINFO(ctypes.Structure):
+    _fields_ = [
+        ("cbSize", wintypes.UINT), ("fMask", wintypes.UINT), ("fType", wintypes.UINT),
+        ("fState", wintypes.UINT), ("wID", wintypes.UINT), ("hSubMenu", wintypes.HMENU),
+        ("hbmpChecked", wintypes.HANDLE), ("hbmpUnchecked", wintypes.HANDLE),
+        ("dwItemData", ctypes.c_void_p), ("dwTypeData", wintypes.LPWSTR),
+        ("cch", wintypes.UINT), ("hbmpItem", wintypes.HANDLE),
+    ]
+
+
+_gdiplus_token = None
+
+
+def _gdiplus_start() -> bool:
+    global _gdiplus_token
+    if _gdiplus_token is not None:
+        return True
+    try:
+        class _StartupInput(ctypes.Structure):
+            _fields_ = [
+                ("GdiplusVersion", ctypes.c_uint32), ("DebugEventCallback", ctypes.c_void_p),
+                ("SuppressBackgroundThread", ctypes.c_int32), ("SuppressExternalCodecs", ctypes.c_int32),
+            ]
+        token = ctypes.c_void_p()
+        ctypes.windll.gdiplus.GdiplusStartup(
+            ctypes.byref(token), ctypes.byref(_StartupInput(1, None, 0, 0)), None
+        )
+        _gdiplus_token = token
+        return True
+    except Exception:
+        return False
+
+
+def _load_hbitmap(path: str):
+    """Load a PNG into a premultiplied 32bpp ARGB HBITMAP (renders with alpha in menus)."""
+    if not _gdiplus_start():
+        return None
+    try:
+        g = ctypes.windll.gdiplus
+        bitmap = ctypes.c_void_p()
+        if g.GdipCreateBitmapFromFile(ctypes.c_wchar_p(path), ctypes.byref(bitmap)) != 0:
+            return None
+        hbm = ctypes.c_void_p()
+        g.GdipCreateHBITMAPFromBitmap(bitmap, ctypes.byref(hbm), 0)  # 0 = transparent bg
+        g.GdipDisposeImage(bitmap)
+        return hbm.value
+    except Exception:
+        return None
 
 
 def _enable_dark_menus() -> None:
@@ -91,6 +157,7 @@ class Tray:
         self._thread: Optional[threading.Thread] = None
         self._ready = threading.Event()
         self._visible = False
+        self._icons: Dict[str, int] = {}  # name -> HBITMAP cache (tray-thread)
 
     # -- public API (callable from any thread) ---------------------------
 
@@ -160,27 +227,57 @@ class Tray:
         except Exception:
             pass
 
+    def _icon(self, name: str):
+        """HBITMAP for assets/tray/<name>.png, cached for the tray's lifetime."""
+        if name not in self._icons:
+            self._icons[name] = _load_hbitmap(str(_ICON_DIR / (name + ".png"))) or 0
+        return self._icons[name] or None
+
     def _show_menu(self) -> None:
-        """Pop the native context menu at the cursor (tray thread)."""
+        """Pop the Docker-style native context menu at the cursor (tray thread)."""
         try:
             state = self._state()
         except Exception:
             state = {"running": False}
         running = bool(state.get("running"))
-        header = (
-            "Running  ·  %s:%s" % (state.get("host"), state.get("port"))
-            if running else "Service stopped"
-        )
-        run_flag = win32con.MF_STRING | (0 if running else win32con.MF_GRAYED)
 
         menu = win32gui.CreatePopupMenu()
-        win32gui.AppendMenu(menu, win32con.MF_STRING | win32con.MF_GRAYED, 0, header)
-        win32gui.AppendMenu(menu, win32con.MF_SEPARATOR, 0, "")
-        win32gui.AppendMenu(menu, win32con.MF_STRING, _ID_OPEN, "Open Configuration")
-        win32gui.AppendMenu(menu, run_flag, _ID_RESTART, "Restart Service")
-        win32gui.AppendMenu(menu, run_flag, _ID_STOP, "Stop Service")
-        win32gui.AppendMenu(menu, win32con.MF_SEPARATOR, 0, "")
-        win32gui.AppendMenu(menu, win32con.MF_STRING, _ID_QUIT, "Quit")
+        pos = [0]
+
+        def item(flags, cmd_id, text, icon=None):
+            win32gui.AppendMenu(menu, flags, cmd_id, text)
+            if icon:
+                hbm = self._icon(icon)
+                if hbm:
+                    mii = _MENUITEMINFO()
+                    mii.cbSize = ctypes.sizeof(_MENUITEMINFO)
+                    mii.fMask = _MIIM_BITMAP
+                    mii.hbmpItem = hbm
+                    ctypes.windll.user32.SetMenuItemInfoW(menu, pos[0], True, ctypes.byref(mii))
+            pos[0] += 1
+
+        sep = win32con.MF_SEPARATOR
+        run_flag = win32con.MF_STRING | (0 if running else win32con.MF_GRAYED)
+
+        # Status header (Docker-style: dot + state), then grouped sections.
+        # Kept enabled (not MF_DISABLED) so the colored status dot isn't
+        # desaturated; id 0 maps to no action, so it's effectively inert.
+        item(win32con.MF_STRING,
+             0, "Service is running" if running else "Service is stopped",
+             "dot_on" if running else "dot_off")
+        item(sep, 0, "")
+        item(win32con.MF_STRING, _ID_OPEN, "Open Configuration", "open")
+        item(sep, 0, "")
+        if running:
+            item(win32con.MF_STRING, _ID_STOP, "Stop Service", "stop")
+        else:
+            item(win32con.MF_STRING, _ID_START, "Start Service", "start")
+        item(run_flag, _ID_RESTART_SVC, "Restart Service", "restart")
+        item(sep, 0, "")
+        item(win32con.MF_STRING, _ID_CHECK_UPDATE, "Check for updates", "update")
+        item(win32con.MF_STRING, _ID_RESTART_APP, "Restart", "reboot")
+        item(sep, 0, "")
+        item(win32con.MF_STRING, _ID_QUIT, "Quit", "quit")
 
         x, y = win32api.GetCursorPos()
         # Required so the menu dismisses correctly when clicking elsewhere.

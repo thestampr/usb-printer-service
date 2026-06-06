@@ -317,14 +317,52 @@ def launch(minimized: bool = False) -> None:
 
     api.bind_quit(real_quit)
 
+    def _check_update_from_tray():
+        # Run the existing in-UI update flow (check -> confirm -> update).
+        _show_main()
+        try:
+            window.evaluate_js(
+                "var b=document.getElementById('update-btn'); b && b.click()"
+            )
+        except Exception:
+            pass
+
+    def _restart_app():
+        # Spawn a detached helper that waits for this process to exit, then relaunches
+        # the UI; then quit. (A clean restart of the whole app.)
+        if getattr(sys, "frozen", False):
+            relaunch = [sys.executable, "--config"]
+        else:
+            pyw = os.path.join(os.path.dirname(sys.executable), "pythonw.exe")
+            runner = pyw if os.path.exists(pyw) else sys.executable
+            relaunch = [runner, str(_CLI), "--config"]
+        waiter = (
+            "import ctypes,subprocess\n"
+            "k=ctypes.windll.kernel32\n"
+            "h=k.OpenProcess(0x00100000,False,%d)\n" % os.getpid()
+            + "if h: k.WaitForSingleObject(h,15000); k.CloseHandle(h)\n"
+            "subprocess.Popen(%r)\n" % (relaunch,)
+        )
+        try:
+            subprocess.Popen(
+                [relaunch[0], "-c", waiter], cwd=str(_ROOT), close_fds=True,
+                creationflags=_DETACHED_PROCESS | _CREATE_NEW_PROCESS_GROUP | _CREATE_NO_WINDOW,
+            )
+        except Exception:
+            return
+        real_quit(force=True)
+
     # The tray icon owns the native right-click menu; its actions run here.
     tray = Tray(
         str(_ICON), "Printer Service",
         on_left_click=_show_main,
         actions={
             "open": _show_main,
+            "start": server_manager.manager.start,
+            "stop": server_manager.manager.stop,
             "restart": lambda: (server_manager.manager.stop(), server_manager.manager.start()),
-            "stop": lambda: (server_manager.manager.stop(), _show_main()),
+            "check_update": _check_update_from_tray,
+            "restart_app": _restart_app,
             "quit": real_quit,
         },
         state_provider=server_manager.manager.status,
