@@ -15,6 +15,11 @@ from pathlib import Path
 
 REPO = "thestampr/usb-printer-service"
 BRANCH = "main"
+# The contents API returns the current file; raw.githubusercontent.com is served
+# via a CDN that caches for ~5 min, so a freshly pushed VERSION isn't seen right
+# away (and the cache can't be busted with a query string). RAW is kept only as a
+# fallback if the API is unavailable.
+API_VERSION_URL = f"https://api.github.com/repos/{REPO}/contents/VERSION?ref={BRANCH}"
 RAW_VERSION_URL = f"https://raw.githubusercontent.com/{REPO}/{BRANCH}/VERSION"
 
 # DETACHED_PROCESS so the launched updater survives this process exiting.
@@ -34,14 +39,30 @@ def get_current_version() -> str:
         return "0.0.0"
 
 
-def get_latest_version(timeout: float = 6.0) -> str:
-    """Fetch the latest published version string from GitHub."""
+def _read_version(url: str, accept: str, timeout: float) -> str:
     request = urllib.request.Request(
-        RAW_VERSION_URL,
-        headers={"User-Agent": "usb-printer-service-updater"},
+        url, headers={"User-Agent": "usb-printer-service-updater", "Accept": accept}
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
-        return response.read().decode("utf-8").strip()
+        body = response.read().decode("utf-8").strip()
+    if body[:1] == "{":  # contents API returned JSON instead of raw -> decode it
+        import base64
+        import json
+
+        return base64.b64decode(json.loads(body)["content"]).decode("utf-8").strip()
+    return body
+
+
+def get_latest_version(timeout: float = 6.0) -> str:
+    """Fetch the latest published version string from GitHub.
+
+    Prefers the contents API (always current); falls back to the raw CDN (which
+    can be up to ~5 min stale after a push) if the API is unavailable.
+    """
+    try:
+        return _read_version(API_VERSION_URL, "application/vnd.github.raw", timeout)
+    except Exception:
+        return _read_version(RAW_VERSION_URL, "*/*", timeout)
 
 
 def _parse(version: str) -> tuple[int, int, int]:
