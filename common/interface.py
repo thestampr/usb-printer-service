@@ -117,7 +117,7 @@ class PayloadInfo:
             footer_info=footer_info,
             items=items,
             rfid=str(payload.get("rfid", "") or ""),
-            info_title=str(payload.get("info-title", "") or ""),
+            info_title=str(payload.get("info_title", payload.get("info-title", "")) or ""),
             received=received,
             change=change,
             discount=discount,

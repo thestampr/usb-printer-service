@@ -40,8 +40,12 @@ def validate_payload(payload: dict[str, Any]) -> dict[str, Any]:
     # Optional free-text fields
     rfid = data.get("rfid")
     data["rfid"] = "" if rfid is None else str(rfid)
-    info_title = data.get("info-title")
-    data["info-title"] = "" if info_title is None else str(info_title)
+    # Canonical key is "info_title"; still accept the legacy "info-title".
+    info_title = data.get("info_title")
+    if info_title is None:
+        info_title = data.get("info-title")
+    data["info_title"] = "" if info_title is None else str(info_title)
+    data.pop("info-title", None)
 
     # Validate header_info
     header_info = data.get("header_info")

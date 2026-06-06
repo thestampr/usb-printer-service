@@ -284,7 +284,7 @@ const data = await res.json();   // { status: "printed", total: 382.5 }</code></
             <p data-th="เพย์โหลดเดียวกันนี้ใช้ได้ทั้งกับ POST /print และ printer --payload">The same JSON body is accepted by both <code>POST /print</code> and <code>printer --payload</code>.</p>
             <pre><code>{
     "rfid": "",
-    "info-title": "Tax Invoice (ABB)",
+    "info_title": "Tax Invoice (ABB)",
     "header_info": {
         "Customer Name": "ACME",
         "Transaction": "TXN-1234"
@@ -308,7 +308,7 @@ const data = await res.json();   // { status: "printed", total: 382.5 }</code></
                 <thead><tr><th data-th="ฟิลด์">Field</th><th data-th="ชนิด">Type</th><th data-th="คำอธิบาย">Notes</th></tr></thead>
                 <tbody>
                     <tr><td><code>rfid</code></td><td>string</td><td data-th="ไม่บังคับ พิมพ์ที่มุมบนซ้ายด้วยฟอนต์ขนาดเล็ก ค่าเริ่มต้นว่าง">Optional. Printed at the <strong>top-left</strong> in the small font. Empty by default.</td></tr>
-                    <tr><td><code>info-title</code></td><td>string</td><td data-th="ไม่บังคับ พิมพ์กึ่งกลางหลังคำอธิบายส่วนหัว ด้วยฟอนต์ขนาดปกติ">Optional. Printed centered <strong>after the header description</strong> in the main font size.</td></tr>
+                    <tr><td><code>info_title</code></td><td>string</td><td data-th="ไม่บังคับ พิมพ์กึ่งกลางหลังคำอธิบายส่วนหัว ด้วยฟอนต์ขนาดปกติ">Optional. Printed centered <strong>after the header description</strong> in the main font size.</td></tr>
                     <tr><td><code>header_info</code></td><td>object</td><td data-th="ไม่บังคับ คู่คีย์/ค่าที่พิมพ์เหนือรายการสินค้า คีย์ที่รู้จักจะถูกแปลภาษาอัตโนมัติ (ดูหัวข้อ ภาษาใบเสร็จ)">Optional key/value pairs above the items. Recognized keys auto-translate (see <a href="#localization">Localization</a>).</td></tr>
                     <tr><td><code>items</code></td><td>array</td><td data-th="บังคับ ต้องไม่ว่าง แต่ละรายการต้องมี name, amount (ราคาต่อหน่วย) และ quantity ยอดรวมต่อรายการ = amount × quantity">
                         <span class="req">Required</span>, non-empty. Each needs <code>name</code>, <code>amount</code> (unit price) and <code>quantity</code>. Line total = <code>amount × quantity</code>.</td></tr>

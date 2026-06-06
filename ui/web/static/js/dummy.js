@@ -24,8 +24,10 @@ window.App = window.App || {};
   // Used for baselines so merely viewing the tab never marks anything dirty.
   function normalize(data) {
     data = data || {};
+    // Migrate the legacy "info-title" key to "info_title".
+    if (data['info-title'] != null && data.info_title == null) data.info_title = data['info-title'];
     const payload = {};
-    ['rfid', 'info-title'].forEach((k) => {
+    ['rfid', 'info_title'].forEach((k) => {
       const v = data[k];
       if (v != null && String(v).trim() !== '') payload[k] = String(v);
     });
@@ -263,7 +265,7 @@ window.App = window.App || {};
 
       this._receipt = fixedCard('Receipt', 'RFID (top-left) · info title (after header)', [
         { key: 'rfid', label: 'RFID', value: String(data.rfid == null ? '' : data.rfid) },
-        { key: 'info-title', label: 'Info Title', value: String(data['info-title'] == null ? '' : data['info-title']) },
+        { key: 'info_title', label: 'Info Title', value: String(data.info_title == null ? '' : data.info_title) },
       ]);
       this._header = kvCard('Header Info', 'printed above the items', data.header_info || {});
       this._items = itemsCard(data.items || []);

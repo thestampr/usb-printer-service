@@ -144,7 +144,7 @@ printer --payload "{\"header_info\":{\"Customer Name\":\"PTT\"},\"items\":[{\"na
 ```json
 {
     "rfid": "",
-    "info-title": "Tax Invoice (ABB)",
+    "info_title": "Tax Invoice (ABB)",
     "header_info": {
         "Customer Name": "Dummy",
         "Customer Code": "CT-9904",
@@ -183,7 +183,7 @@ printer --payload "{\"header_info\":{\"Customer Name\":\"PTT\"},\"items\":[{\"na
 Field notes:
 
 - `rfid` *(optional string)* – printed at the top-left of the receipt in the small font. Empty by default (not printed when blank).
-- `info-title` *(optional string)* – printed centered just after the header description, in the main font size. Empty by default.
+- `info_title` *(optional string)* – printed centered just after the header description, in the main font size. Empty by default. (The legacy `info-title` key is still accepted.)
 - `header_info` *(optional object)* – arbitrary key/value pairs for header information (e.g., customer details, transaction ID). Keys matching the recognized set (see the table in `README.md`, e.g. `Transaction`, `Cashier`, `Date`) are auto-translated to the active locale's label; unrecognized keys print verbatim.
 - `items` *(required, non-empty list)* – each entry must include `name` (string), `amount` (price per unit), and `quantity` (number of units). The per-line total is `amount × quantity`. Items render as four columns: **Item / Amount / Qty / Total**.
 - `footer_info` *(optional object)* – arbitrary key/value pairs for footer information (e.g., points, notes). Recognized keys are auto-translated like `header_info`.

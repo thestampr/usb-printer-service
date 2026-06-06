@@ -62,7 +62,7 @@ Send a JSON payload to `POST http://localhost:5000/print` matching the structure
 ```json
 {
     "rfid": "",
-    "info-title": "Tax Invoice (ABB)",
+    "info_title": "Tax Invoice (ABB)",
     "header_info": {
         "Customer Name": "Dummy",
         "Customer Code": "CT-9904",
@@ -101,7 +101,7 @@ Send a JSON payload to `POST http://localhost:5000/print` matching the structure
 **Field notes**
 
 - `rfid` *(optional string)* – printed at the top-left of the receipt in the small font. Empty by default (not printed when blank).
-- `info-title` *(optional string)* – printed centered just after the header description, in the main font size. Empty by default.
+- `info_title` *(optional string)* – printed centered just after the header description, in the main font size. Empty by default. (The legacy `info-title` key is still accepted.)
 - `header_info` *(optional object)* – arbitrary key/value pairs for header information (e.g., customer details, transaction ID). Recognized keys are auto-translated to the active locale (see the table below).
 - `items` *(required, non-empty list)* – each item needs `name` (string), `amount` (price per unit), and `quantity` (number of units). The per-line total is `amount × quantity`. Items render as four columns: **Item / Amount / Qty / Total**.
 - `footer_info` *(optional object)* – arbitrary key/value pairs for footer information (e.g., points, notes). Recognized keys are auto-translated like `header_info`.

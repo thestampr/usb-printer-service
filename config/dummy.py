@@ -21,7 +21,7 @@ _DUMMY_FILE = Path(__file__).with_name("temp.dummy.json")
 # which the preview and test print already source images from.
 DEFAULT_DUMMY: dict[str, Any] = {
     "rfid": "",
-    "info-title": "Tax Invoice (ABB)",
+    "info_title": "Tax Invoice (ABB)",
     "header_info": {
         "No.": "00123",
         "Customer Name": "Dummy",
