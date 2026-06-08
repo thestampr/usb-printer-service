@@ -123,8 +123,8 @@ _C_DOT_OFF = (124, 128, 138)  # stopped status dot
 _C_ICON = (214, 214, 214)    # item glyph (e.g. Quit power)
 
 # Layout metrics at 96 DPI (scaled by the popup's DPI at menu time).
-_ROW_H = 30
-_HEADER_H = 35
+_ROW_H = 27
+_HEADER_H = 33
 _SEP_H = 17       # separator row height; the line sits centered, so this is its margin
 _PAD_L = 14       # left padding to the icon gutter
 _ICON = 14        # icon gutter width (px); icons are drawn as vectors within it
