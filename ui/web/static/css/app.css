@@ -5,7 +5,7 @@ html, body {
   height: 100%;
   font-family: var(--font);
   color: var(--text-color);
-  background: var(--window-bg);
+  background: var(--nav-bg);
   font-size: 14px;
   -webkit-user-select: none;
   user-select: none;
@@ -109,7 +109,12 @@ button { font-family: inherit; }
 .nav-update:hover { background: rgba(255,255,255,.08); color: var(--nav-active-text); }
 
 /* ---- Content ------------------------------------------------------ */
-.content { display: flex; flex-direction: column; min-width: 0; height: 100%; }
+.content {
+  display: flex; flex-direction: column; min-width: 0; height: 100%;
+  background: var(--window-bg);
+  border-top-left-radius: var(--radius);
+  overflow: hidden;  /* clip children to the rounded corner so the nav-bg arch shows through */
+}
 .content-body { flex: 1; display: flex; min-height: 0; }
 
 /* Form column: a fixed section title sits at the top (next to the preview
