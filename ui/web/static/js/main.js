@@ -26,6 +26,7 @@ window.App = window.App || {};
     document.getElementById('dummy-actions').toggleAttribute('hidden', sec !== 'DUMMY');
     if (App.dummy) App.dummy._mounted = sec === 'DUMMY';
     updatePreviewVisibility();
+    refreshScrollShadows();
   }
 
   let lastDirty = null;
@@ -115,6 +116,24 @@ window.App = window.App || {};
     document.getElementById('link-github').addEventListener('click', () => App.bridge.call('open_github'));
   }
 
+  // Toggle a `scrolled` class on a header once its scroll pane leaves the top, so
+  // the header's soft shadow only shows when there's content scrolled under it.
+  const scrollShadowUpdaters = [];
+  function wireScrollShadow(scrollEl, headerSel) {
+    const scroll = typeof scrollEl === 'string' ? document.getElementById(scrollEl) : scrollEl;
+    const header = document.querySelector(headerSel);
+    if (!scroll || !header) return;
+    const update = () => header.classList.toggle('scrolled', scroll.scrollTop > 0);
+    scroll.addEventListener('scroll', update, { passive: true });
+    scrollShadowUpdaters.push(update);
+    update();
+  }
+  // Switching sections can clamp a short pane's scrollTop without firing a scroll
+  // event, so re-check after layout settles to clear a stale shadow.
+  function refreshScrollShadows() {
+    requestAnimationFrame(() => scrollShadowUpdaters.forEach((u) => u()));
+  }
+
   // Called by the native close handler when there are unsaved changes.
   App.confirmClose = async function () {
     const ok = await App.dom.confirm('You have unsaved changes. Close without saving?', {
@@ -155,6 +174,8 @@ window.App = window.App || {};
     if (App.dummy) { App.dummy.init(); App.dummy.render(); }
 
     wireNav();
+    wireScrollShadow('form-pane', '.section-header');
+    wireScrollShadow(document.querySelector('.preview-scroll'), '.preview-toolbar');
     document.getElementById('save-btn').addEventListener('click', save);
     document.getElementById('cancel-btn').addEventListener('click', revert);
     document.getElementById('reset-btn').addEventListener('click', resetDefaults);

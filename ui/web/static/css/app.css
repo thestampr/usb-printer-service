@@ -126,7 +126,12 @@ button { font-family: inherit; }
   flex: none; height: var(--header-h);
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
   padding: 16px calc(var(--pad-x) + var(--scrollw)) 10px;
+  /* sit above the scroll pane so the scrolled shadow falls over the content */
+  position: relative; z-index: 1;
+  transition: box-shadow .15s;
 }
+.section-header.scrolled,
+.preview-toolbar.scrolled { box-shadow: 0 8px 16px -10px rgba(20, 25, 45, .12); }
 .section-title { margin: 0; font-size: 18px; font-weight: 700; }
 .header-actions { flex: none; display: flex; gap: 8px; }
 .header-actions[hidden] { display: none; }
@@ -152,6 +157,9 @@ button { font-family: inherit; }
      scrollbar width on BOTH sides for its content to line up with the receipt. */
   padding: 16px calc(18px + var(--scrollw)) 10px;
   display: flex; align-items: center; justify-content: space-between;
+  /* sit above the scroll pane so the scrolled shadow falls over the content */
+  position: relative; z-index: 1;
+  transition: box-shadow .15s;
 }
 .preview-scroll {
   flex: 1; overflow-y: auto; scrollbar-gutter: stable;
@@ -177,13 +185,17 @@ button { font-family: inherit; }
 
 /* ---- Scrollbars (WebView2 / Chromium): thin, fixed, no hover resize ---- */
 .form-pane::-webkit-scrollbar,
-.preview-scroll::-webkit-scrollbar { width: var(--scrollw); }
+.preview-scroll::-webkit-scrollbar,
+textarea::-webkit-scrollbar { width: var(--scrollw); }
 .form-pane::-webkit-scrollbar-button,
-.preview-scroll::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
+.preview-scroll::-webkit-scrollbar-button,
+textarea::-webkit-scrollbar-button { display: none; width: 0; height: 0; }
 .form-pane::-webkit-scrollbar-track,
-.preview-scroll::-webkit-scrollbar-track { background: transparent; }
+.preview-scroll::-webkit-scrollbar-track,
+textarea::-webkit-scrollbar-track { background: transparent; }
 .form-pane::-webkit-scrollbar-thumb,
-.preview-scroll::-webkit-scrollbar-thumb {
+.preview-scroll::-webkit-scrollbar-thumb,
+textarea::-webkit-scrollbar-thumb {
   /* transparent border + padding-box clip -> a slim thumb floating with margins.
      The border (size) is identical in every state, so the thumb never resizes. */
   background: #c9cee3; border-radius: 999px;
@@ -191,8 +203,10 @@ button { font-family: inherit; }
 }
 .form-pane::-webkit-scrollbar-thumb:hover,
 .preview-scroll::-webkit-scrollbar-thumb:hover,
+textarea::-webkit-scrollbar-thumb:hover,
 .form-pane::-webkit-scrollbar-thumb:active,
-.preview-scroll::-webkit-scrollbar-thumb:active {
+.preview-scroll::-webkit-scrollbar-thumb:active,
+textarea::-webkit-scrollbar-thumb:active {
   background: #aeb5d6; border: 3px solid transparent; background-clip: padding-box;
 }
 
@@ -274,8 +288,8 @@ input[type="range"] {
   background: var(--border-color); flex: 1; outline: none;
 }
 input[type="range"]::-webkit-slider-thumb {
-  -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
-  background: var(--accent); cursor: pointer; border: 2px solid #fff;
+  -webkit-appearance: none; width: 13px; height: 13px; border-radius: 50%;
+  background: var(--accent); cursor: pointer; border: none;
   box-shadow: 0 1px 3px rgba(0,0,0,.25);
 }
 .slider-value {
